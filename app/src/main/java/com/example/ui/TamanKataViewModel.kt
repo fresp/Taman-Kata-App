@@ -146,6 +146,10 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         }
     }
 
+    fun getRecordingDuration(): Long {
+        return System.currentTimeMillis() - currentRecordingStartTime
+    }
+
     fun evaluateAudio(audioBase64: String) {
         val currentState = _sessionState.value
         if (currentState !is SessionState.Playing) return
@@ -156,6 +160,12 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         _sessionState.value = currentState.copy(isRecording = false, isEvaluating = true)
 
         viewModelScope.launch {
+            val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+            if (apiKey.isEmpty() || apiKey.contains("MY_GEMINI_API_KEY")) {
+                _sessionState.value = SessionState.Error(currentItem, "Konfigurasi API belum siap — hubungi orang tua/developer")
+                return@launch
+            }
+
             val result = evaluateWithGemini(currentItem.text, audioBase64)
             
             if (result == null) {
@@ -341,6 +351,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                     "Maklumi pelafalan anak kecil yang mungkin kurang sempurna/cadel. " +
                     "Berikan juga skor 'fluency' (kelancaran, 0-100) berdasarkan ada tidaknya jeda mengeja antar suku kata (makin lancar tanpa jeda = makin tinggi). " +
                     "Evaluasi juga 'intonationMatched' (true/false) khusus jika target memiliki tanda baca (?, !, .), apakah nada bicara anak sudah sesuai tanda baca tersebut dan berhenti di koma. " +
+                    "PENTING: Jika audio hening/tidak ada ucapan sama sekali/hanya noise latar, maka score = 0, isCorrect = false, fluency = 0. Toleransi pelafalan cadel HANYA berlaku jika anak benar-benar mengucapkan sesuatu yang bisa didengar. " +
                     "Keluarkan JSON tanpa format markdown, murni berisi: {\"score\": <0-100>, \"fluency\": <0-100>, \"isCorrect\": <boolean>, \"intonationMatched\": <boolean>}. " +
                     "Syarat isCorrect true adalah jika score >= 70."
 
@@ -356,12 +367,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                 generationConfig = GenerationConfig(responseMimeType = "application/json")
             )
 
-            val apiKey = BuildConfig.GEMINI_API_KEY
-            if (apiKey.isEmpty() || apiKey.contains("MY_GEMINI_API_KEY")) {
-                // Mock for testing if no real key
-                return@withContext GeminiEvalResult(85, 90, true, true)
-            }
-
+            val apiKey = com.example.BuildConfig.GEMINI_API_KEY
             val response = RetrofitClient.service.generateContent(apiKey, request)
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
             

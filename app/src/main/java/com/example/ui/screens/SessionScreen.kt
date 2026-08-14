@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -137,11 +138,18 @@ fun SessionScreen(
                     onToggleRecord = {
                         if (hasMicPermission) {
                             if (state.isRecording) {
-                                val base64Audio = audioRecorder.stopRecording()
-                                if (base64Audio != null) {
-                                    viewModel.evaluateAudio(base64Audio)
+                                val duration = viewModel.getRecordingDuration()
+                                if (duration < 400) {
+                                    viewModel.setRecording(false)
+                                    audioRecorder.stopRecording()
+                                    Toast.makeText(context, "Kakak belum dengar suaranya, coba tekan lalu ucapkan ya!", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    viewModel.setRecording(false) // Error recording
+                                    val base64Audio = audioRecorder.stopRecording()
+                                    if (base64Audio != null) {
+                                        viewModel.evaluateAudio(base64Audio)
+                                    } else {
+                                        viewModel.setRecording(false) // Error recording
+                                    }
                                 }
                             } else {
                                 audioRecorder.startRecording()
