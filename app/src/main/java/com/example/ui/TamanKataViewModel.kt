@@ -162,6 +162,11 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                 listOf(LearningItem(id = 99, stageId = 7, text = "Aku anak pintar."))
             } else testingItems
             
+            // Sesi dibatasi maksimal 10 item (prinsip micro-session ramah anak).
+            // Dengan 50 item di Stage 1, sistem mengambil 10 item per sesi sehingga terdapat variasi antar sesi.
+            // TODO: Pada iterasi lanjutan, urutan pengambilan item untuk Stage 1 dapat disempurnakan dengan 
+            // sequencing berbasis mastery per keluarga huruf (misal: menyelesaikan seluruh vokal dari satu konsonan
+            // seperti ba, bi, bu, be, bo sebelum beralih ke ma, mi, mu, me, mo) alih-alih mengambil urutan antrean langsung.
             allSessionItems = finalItems.take(10) // Take up to 10 for a session
             sessionQueue = LinkedList(allSessionItems)
 

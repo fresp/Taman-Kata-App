@@ -45,15 +45,22 @@ class TamanKataRepository(
             dao.insertStages(stages)
             
             val items = mutableListOf<LearningItem>()
-            // Stage 0 (Tahap 1)
-            items.add(LearningItem(stageId = 0, text = "a", syllables = "a"))
-            items.add(LearningItem(stageId = 0, text = "i", syllables = "i"))
-            items.add(LearningItem(stageId = 0, text = "u", syllables = "u"))
+            // Stage 0 (Tahap 1: Vokal - a, i, u, e, o)
+            val stage0Vowels = listOf("a", "i", "u", "e", "o")
+            stage0Vowels.forEach { vowel ->
+                items.add(LearningItem(stageId = 0, text = vowel, syllables = vowel))
+            }
             
-            // Stage 1 (Tahap 2)
-            items.add(LearningItem(stageId = 1, text = "ba", syllables = "ba"))
-            items.add(LearningItem(stageId = 1, text = "bi", syllables = "bi"))
-            items.add(LearningItem(stageId = 1, text = "bu", syllables = "bu"))
+            // Stage 1 (Tahap 2: Suku Kata KV - 10 keluarga huruf x 5 vokal = 50 item)
+            // Urutan keluarga huruf berdasarkan frekuensi umum: b, m, p, t, d, n, l, k, s, r
+            val stage1Consonants = listOf("b", "m", "p", "t", "d", "n", "l", "k", "s", "r")
+            val vowels = listOf("a", "i", "u", "e", "o")
+            stage1Consonants.forEach { consonant ->
+                vowels.forEach { vowel ->
+                    val syllable = "$consonant$vowel"
+                    items.add(LearningItem(stageId = 1, text = syllable, syllables = syllable))
+                }
+            }
             
             // Stage 2 (Tahap 3 - Suku Kata Tertutup)
             val stage2Items = listOf("ma-kan", "mi-num", "du-duk", "ku-cing", "pin-tar", "kan-cil", "ban-tal", "can-tik")
