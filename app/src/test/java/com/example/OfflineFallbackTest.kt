@@ -84,13 +84,16 @@ class OfflineFallbackTest {
         advanceUntilIdle()
 
         val state = viewModel.sessionState.value
-        assertTrue("State must be Feedback", state is SessionState.Feedback)
-        val feedback = state as SessionState.Feedback
-        assertTrue("showParentHelp must be true", feedback.showParentHelp)
-        assertEquals("OFFLINE", feedback.parentHelpReason)
-        assertFalse("isCorrect must be false initially", feedback.isCorrect)
+        assertTrue("State must be SttFallback", state is SessionState.SttFallback)
 
         // Parent confirms it is correct
+        viewModel.evaluateSttResult((state as SessionState.SttFallback).item, null)
+        advanceUntilIdle()
+        val sttFailedState = viewModel.sessionState.value
+        assertTrue("State must be Feedback", sttFailedState is SessionState.Feedback)
+        val feedback = sttFailedState as SessionState.Feedback
+        assertTrue("showParentHelp must be true", feedback.showParentHelp)
+        assertEquals("OFFLINE", feedback.parentHelpReason)
         viewModel.manualParentEvaluation(isCorrect = true)
         advanceUntilIdle()
 

@@ -32,6 +32,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.ui.draw.scale
 import androidx.core.content.ContextCompat
 import com.example.ui.SessionState
 import com.example.ui.TamanKataViewModel
@@ -59,6 +66,7 @@ fun SessionScreen(
     
     val ttsHelper = remember { TTSHelper(context) }
     val audioRecorder = remember { AudioRecorderHelper(context) }
+    val sttHelper = remember { com.example.util.OnDeviceSttHelper(context) }
     val coroutineScope = rememberCoroutineScope()
 
     var isSoftLimit by remember { mutableStateOf(false) }
@@ -133,6 +141,7 @@ fun SessionScreen(
                             KikiExpression.NEUTRAL
                         }
                     }
+                    is SessionState.SttFallback -> KikiExpression.NEUTRAL
                     else -> if (isSoftLimit) KikiExpression.HAPPY else KikiExpression.NEUTRAL
                 }
                 KikiMascot(expression = expression, modifier = Modifier.size(72.dp))
@@ -296,6 +305,26 @@ fun SessionScreen(
                     }
                 )
             }
+            is SessionState.SttFallback -> {
+                LaunchedEffect(state) {
+                    val recognized = sttHelper.startListening()
+                    viewModel.evaluateSttResult(state.item, recognized)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(32.dp)) {
+                    KikiMascot(
+                        expression = KikiExpression.NEUTRAL,
+                        modifier = Modifier.size(96.dp)
+                    )
+                    Text(
+                        text = "Oh, ada gangguan koneksi. Coba ucapkan lagi pelan-pelan ya!", 
+                        color = TextDark, 
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+                }
+            }
             is SessionState.Feedback -> {
                 FeedbackView(
                     state = state,
@@ -374,8 +403,42 @@ fun PlayingView(
         Spacer(modifier = Modifier.height(64.dp))
 
         if (isEvaluating) {
-            CircularProgressIndicator(color = PrimaryGreen)
-            Text("Tunggu ya...", color = TextDark, modifier = Modifier.padding(top = 16.dp))
+            val messages = listOf("Kiki lagi dengerin...", "Sebentar ya...", "Lagi mikir...", "Wah, suaranya bagus!")
+            var messageIndex by remember { mutableStateOf(0) }
+            
+            LaunchedEffect(Unit) {
+                while(true) {
+                    delay(2000)
+                    messageIndex = (messageIndex + 1) % messages.size
+                }
+            }
+            
+            val infiniteTransition = rememberInfiniteTransition(label = "eval")
+            val scale by infiniteTransition.animateFloat(
+                initialValue = 0.9f,
+                targetValue = 1.1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "scale"
+            )
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                KikiMascot(
+                    expression = KikiExpression.NEUTRAL,
+                    modifier = Modifier
+                        .size(96.dp)
+                        .scale(scale)
+                )
+                Text(
+                    text = messages[messageIndex], 
+                    color = TextDark, 
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+            }
         } else {
             Surface(
                 shape = CircleShape,

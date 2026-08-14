@@ -11,6 +11,8 @@ import com.example.data.Stage
 import com.example.data.TamanKataRepository
 import com.example.network.Content
 import com.example.network.GenerateContentRequest
+import com.example.network.ThinkingConfig
+
 import com.example.network.GenerationConfig
 import com.example.network.InlineData
 import com.example.network.Part
@@ -36,6 +38,7 @@ data class GeminiEvalResult(val score: Int, val fluency: Int, val isCorrect: Boo
 sealed class SessionState {
     object Loading : SessionState()
     data class Playing(val item: LearningItem, val isRecording: Boolean = false, val isEvaluating: Boolean = false) : SessionState()
+    data class SttFallback(val item: LearningItem) : SessionState()
     data class Feedback(
         val item: LearningItem,
         val isCorrect: Boolean,
@@ -290,13 +293,8 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         _sessionState.value = currentState.copy(isRecording = false, isEvaluating = true)
 
         if (!isOnline) {
-            // Offline fallback: Do NOT call Gemini API at all
-            _sessionState.value = SessionState.Feedback(
-                item = currentItem,
-                isCorrect = false,
-                showParentHelp = true,
-                parentHelpReason = "OFFLINE"
-            )
+            // Offline fallback: Use OnDevice STT
+            _sessionState.value = SessionState.SttFallback(currentItem)
             return
         }
 
@@ -314,14 +312,11 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             val evalResult = evaluateWithGemini(currentItem.text, audioBase64)
             
             if (evalResult.isFailure) {
-                val e = evalResult.exceptionOrNull()
-                _sessionState.value = SessionState.Error(
-                    currentItem, 
-                    "Ups, ada gangguan koneksi, coba rekam lagi ya",
-                    e?.message
-                )
+                _sessionState.value = SessionState.SttFallback(currentItem)
                 return@launch
             }
+            
+            android.util.Log.i("TamanKata_Eval", "Item evaluated via: GEMINI")
             
             val result = evalResult.getOrThrow()
             
@@ -559,7 +554,10 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                         )
                     )
                 ),
-                generationConfig = GenerationConfig(responseMimeType = "application/json")
+                generationConfig = GenerationConfig(
+                    responseMimeType = "application/json",
+                    thinkingConfig = ThinkingConfig(thinkingLevel = "low") // Dapat dicoba "minimal" untuk latency lebih rendah jika akurasi tetap terjaga
+                )
             )
 
             val apiKey = com.example.BuildConfig.GEMINI_API_KEY
@@ -610,6 +608,38 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                 }
                 throw IllegalArgumentException("Unknown ViewModel class")
             }
+        }
+    }
+
+    fun evaluateSttResult(item: com.example.data.LearningItem, recognizedText: String?) {
+        if (recognizedText == null) {
+            // STT failed, fallback to parent
+            _sessionState.value = SessionState.Feedback(
+                item = item,
+                isCorrect = false,
+                showParentHelp = true,
+                parentHelpReason = "OFFLINE"
+            )
+            return
+        }
+
+        val similarity = com.example.util.SimplePhoneticMatcher.calculateSimilarity(item.text, recognizedText)
+        if (similarity >= 70) {
+            android.util.Log.i("TamanKata_Eval", "Item evaluated via: ON_DEVICE")
+            viewModelScope.launch {
+                val wordCount = item.text.split(Regex("\\s+")).size
+                val durationSecs = 2f // Approx
+                val wcpm = ((wordCount * (similarity / 100f)) / (durationSecs / 60f)).toInt()
+                handleEvaluationResult(item, similarity, similarity, true, true, wcpm)
+            }
+        } else {
+            // STT score too low, fallback to parent
+            _sessionState.value = SessionState.Feedback(
+                item = item,
+                isCorrect = false,
+                showParentHelp = true,
+                parentHelpReason = "OFFLINE"
+            )
         }
     }
 }

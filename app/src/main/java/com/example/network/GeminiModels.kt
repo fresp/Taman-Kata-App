@@ -27,8 +27,14 @@ data class InlineData(
 )
 
 @JsonClass(generateAdapter = true)
+data class ThinkingConfig(
+    val thinkingLevel: String
+)
+
+@JsonClass(generateAdapter = true)
 data class GenerationConfig(
-    val responseMimeType: String? = null
+    val responseMimeType: String? = null,
+    val thinkingConfig: ThinkingConfig? = null
 )
 
 @JsonClass(generateAdapter = true)

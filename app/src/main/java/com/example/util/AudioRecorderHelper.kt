@@ -26,6 +26,8 @@ class AudioRecorderHelper(private val context: Context) {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setAudioSamplingRate(16000) // 16kHz is standard for speech recognition
+            setAudioEncodingBitRate(32000) // 32kbps for smaller file size without losing speech clarity
             setOutputFile(currentOutputFile?.absolutePath)
             
             try {
