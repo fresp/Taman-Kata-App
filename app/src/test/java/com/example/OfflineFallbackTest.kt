@@ -32,6 +32,10 @@ class OfflineFallbackTest {
         val items = mutableListOf<LearningItem>()
         val stages = mutableListOf<Stage>()
         val history = mutableListOf<SessionHistory>()
+        val stories = mutableListOf<com.example.data.Story>()
+        override fun getAllStories(): Flow<List<com.example.data.Story>> = flowOf(stories)
+        override suspend fun getStoryCount(): Int = stories.size
+        override suspend fun insertStories(stories: List<com.example.data.Story>) { this.stories.addAll(stories) }
 
         override fun getAllStages(): Flow<List<Stage>> = flowOf(stages)
         override fun getItemsForStage(stageId: Int): Flow<List<LearningItem>> = flowOf(items.filter { it.stageId == stageId })

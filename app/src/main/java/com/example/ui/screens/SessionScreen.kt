@@ -51,7 +51,8 @@ import kotlinx.coroutines.launch
 fun SessionScreen(
     stageId: Int,
     viewModel: TamanKataViewModel,
-    onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean, isTimeLimit: Boolean) -> Unit
+    onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean, isTimeLimit: Boolean) -> Unit,
+    onNavigateToLibrary: () -> Unit
 ) {
     val context = LocalContext.current
     val sessionState by viewModel.sessionState.collectAsState()
@@ -276,7 +277,8 @@ fun SessionScreen(
                 GraduationCertificateView(
                     studentName = state.studentName,
                     totalHours = state.totalHours,
-                    onFinish = { onSessionFinished(0, 0, 100, true, false) }
+                    onFinish = { onSessionFinished(0, 0, 100, true, false) },
+                    onNavigateToLibrary = onNavigateToLibrary
                 )
             }
             else -> {}
@@ -593,7 +595,7 @@ fun ComprehensionView(state: SessionState.Comprehension, onAnswerSelected: (Int)
 }
 
 @Composable
-fun GraduationCertificateView(studentName: String, totalHours: Double, onFinish: () -> Unit) {
+fun GraduationCertificateView(studentName: String, totalHours: Double, onFinish: () -> Unit, onNavigateToLibrary: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(16.dp).fillMaxWidth()
@@ -624,6 +626,14 @@ fun GraduationCertificateView(studentName: String, totalHours: Double, onFinish:
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onNavigateToLibrary,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = ActionOrange)
+        ) {
+            Text("Baca Dongeng Yuk!", style = MaterialTheme.typography.titleLarge)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = onFinish,
             modifier = Modifier.fillMaxWidth(),

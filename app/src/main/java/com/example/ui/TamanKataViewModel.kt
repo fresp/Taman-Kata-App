@@ -23,7 +23,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.example.data.Story
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.LinkedList
@@ -96,6 +98,21 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
+        )
+
+    val stories: StateFlow<List<Story>> = repository.allStories
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val hasGraduated: StateFlow<Boolean> = stages
+        .map { list -> list.find { it.id == 8 }?.isUnlocked == true }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
         )
 
     private val _sessionState = MutableStateFlow<SessionState>(SessionState.Loading)

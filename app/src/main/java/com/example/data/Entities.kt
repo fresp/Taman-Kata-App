@@ -36,3 +36,12 @@ data class SessionHistory(
     val averageWcpm: Int = 0,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "stories")
+data class Story(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val body: String, // Paragraphs separated by \n\n
+    val category: String,
+    val sourceAttribution: String = ""
+)

@@ -50,10 +50,12 @@ fun RoadmapScreen(
     viewModel: TamanKataViewModel,
     onStageSelected: (Int) -> Unit,
     onNavigateToDashboard: () -> Unit,
-    onNavigateToCollection: () -> Unit
+    onNavigateToCollection: () -> Unit,
+    onNavigateToLibrary: () -> Unit
 ) {
     val stages by viewModel.stages.collectAsState()
     val sessionHistory by viewModel.sessionHistory.collectAsState()
+    val hasGraduated by viewModel.hasGraduated.collectAsState()
     
     val currentLevel = stages.count { it.isUnlocked }
     
@@ -207,22 +209,43 @@ fun RoadmapScreen(
                 Text("3S HOLD", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
             }
 
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = Color.White,
-                border = BorderStroke(2.dp, PrimaryGreen),
-                modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .clickable { onNavigateToCollection() }
-            ) {
-                Text(
-                    text = "KOLEKSI",
-                    color = TextDark,
-                    fontWeight = FontWeight.Black,
-                    fontStyle = FontStyle.Italic,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                    letterSpacing = 1.sp
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.White,
+                    border = BorderStroke(2.dp, PrimaryGreen),
+                    modifier = Modifier
+                        .padding(bottom = 8.dp)
+                        .clickable { onNavigateToCollection() }
+                ) {
+                    Text(
+                        text = "KOLEKSI",
+                        color = TextDark,
+                        fontWeight = FontWeight.Black,
+                        fontStyle = FontStyle.Italic,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        letterSpacing = 1.sp
+                    )
+                }
+                
+                if (hasGraduated) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = ActionOrange,
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .clickable { onNavigateToLibrary() }
+                    ) {
+                        Text(
+                            text = "PERPUSTAKAAN",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontStyle = FontStyle.Italic,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
             }
 
             Surface(

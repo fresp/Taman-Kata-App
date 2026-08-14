@@ -98,6 +98,9 @@ fun TamanKataNavHost(
                 },
                 onNavigateToCollection = {
                     navController.navigate("koleksi")
+                },
+                onNavigateToLibrary = {
+                    navController.navigate("perpustakaan")
                 }
             )
         }
@@ -119,6 +122,11 @@ fun TamanKataNavHost(
                 onSessionFinished = { duration, itemsCount, avgScore, passed, isTimeLimit ->
                     navController.navigate("result/$avgScore/$passed/$isTimeLimit") {
                         popUpTo("session/{stageId}") { inclusive = true }
+                    }
+                },
+                onNavigateToLibrary = {
+                    navController.navigate("perpustakaan") {
+                        popUpTo("roadmap") { inclusive = false }
                     }
                 }
             )
@@ -150,6 +158,28 @@ fun TamanKataNavHost(
                 },
                 onNavigateToPrivacyInfo = {
                     navController.navigate("consent_review")
+                }
+            )
+        }
+        composable("perpustakaan") {
+            com.example.ui.screens.StoryLibraryScreen(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToStory = { storyId ->
+                    navController.navigate("baca_cerita/$storyId")
+                }
+            )
+        }
+        composable("baca_cerita/{storyId}") { backStackEntry ->
+            val storyIdStr = backStackEntry.arguments?.getString("storyId")
+            val storyId = storyIdStr?.toIntOrNull() ?: 0
+            com.example.ui.screens.StoryReaderScreen(
+                storyId = storyId,
+                viewModel = viewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

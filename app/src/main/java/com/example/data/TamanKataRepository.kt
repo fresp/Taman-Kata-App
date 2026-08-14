@@ -9,6 +9,7 @@ class TamanKataRepository(
     val allStages: Flow<List<Stage>> = dao.getAllStages()
     val sessionHistory: Flow<List<SessionHistory>> = dao.getSessionHistory()
     val masteredItems: Flow<List<LearningItem>> = dao.getMasteredItems()
+    val allStories: Flow<List<Story>> = dao.getAllStories()
 
     val hasConsented: Flow<Boolean> = consentPreferences?.hasConsented ?: kotlinx.coroutines.flow.flowOf(false)
     val consentTimestamp: Flow<Long> = consentPreferences?.consentTimestamp ?: kotlinx.coroutines.flow.flowOf(0L)
@@ -127,6 +128,42 @@ class TamanKataRepository(
             }
             
             dao.insertItems(items)
+        }
+        
+        if (dao.getStoryCount() == 0) {
+            val stories = listOf(
+                Story(
+                    title = "Timun Mas",
+                    body = "Dahulu kala, ada seorang janda bernama Mbok Srini yang sangat ingin memiliki anak.\n\nSuatu hari, raksasa memberinya biji timun. Dari dalam timun emas yang besar, lahirlah bayi perempuan cantik bernama Timun Mas.\n\nNamun, raksasa itu berjanji akan kembali mengambil Timun Mas saat ia dewasa. Mbok Srini membekali Timun Mas kantong ajaib.\n\nTimun Mas melempar biji timun yang menjadi hutan, jarum yang menjadi bambu berduri, dan terasi yang menjadi lumpur hidup.\n\nRaksasa pun tenggelam di lumpur, dan Timun Mas hidup bahagia bersama ibunya.",
+                    category = "Dongeng Rakyat",
+                    sourceAttribution = "Dongeng rakyat Indonesia, domain publik"
+                ),
+                Story(
+                    title = "Si Kancil dan Buaya",
+                    body = "Kancil sedang berjalan di hutan. Ia merasa lapar dan ingin makan buah rambutan di seberang sungai.\n\nNamun, sungai itu dipenuhi buaya kelaparan. Kancil pun mendapat ide cerdik.\n\nIa berteriak memanggil buaya dan berkata bahwa raja hutan memintanya menghitung jumlah buaya untuk diberi hadiah daging.\n\nPara buaya segera berbaris di sungai. Kancil melompat dari satu punggung buaya ke punggung buaya lainnya sambil berhitung.\n\nSesampainya di seberang, Kancil tertawa dan berterima kasih lalu pergi memakan rambutan.",
+                    category = "Dongeng Rakyat",
+                    sourceAttribution = "Dongeng rakyat Indonesia, domain publik"
+                ),
+                Story(
+                    title = "Bawang Merah Bawang Putih",
+                    body = "Bawang Putih adalah gadis yang baik hati dan rajin. Bawang Merah adalah saudara tirinya yang pemalas dan sombong.\n\nSuatu hari, selendang Bawang Merah hanyut di sungai. Bawang Putih mencarinya dan bertemu nenek tua.\n\nNenek tua itu meminta Bawang Putih membantunya. Bawang Putih bekerja dengan rajin dan diberi hadiah labu kecil.\n\nSaat dibuka, labu itu berisi emas. Bawang Merah ikut menemui nenek itu tapi ia malas. Ia memilih labu besar yang ternyata berisi ular.\n\nBawang Merah dan ibunya pun menyesal atas perbuatan buruk mereka.",
+                    category = "Dongeng Rakyat",
+                    sourceAttribution = "Dongeng rakyat Indonesia, domain publik"
+                ),
+                Story(
+                    title = "Keong Emas",
+                    body = "Putri Candra Kirana disihir menjadi keong emas oleh penyihir jahat dan dibuang ke sungai.\n\nSeorang nenek baik hati menemukan keong emas itu dan membawanya pulang. Keesokan harinya, rumah nenek itu penuh dengan makanan lezat.\n\nNenek itu penasaran dan mengintip. Ia melihat keong emas berubah menjadi putri cantik.\n\nNenek segera memecahkan cangkang keong itu agar putri tidak bisa kembali menjadi keong.\n\nKutukan pun patah, dan putri kembali ke istana hidup bahagia.",
+                    category = "Dongeng Rakyat",
+                    sourceAttribution = "Dongeng rakyat Indonesia, domain publik"
+                ),
+                Story(
+                    title = "Kancil Mencuri Mentimun",
+                    body = "Pak Tani sedang kesal karena kebun mentimunnya selalu rusak. Ia lalu membuat orang-orangan sawah yang diolesi getah lengket.\n\nKancil yang lapar datang ke kebun. Ia melihat orang-orangan itu dan mencoba menendangnya.\n\nNamun, kaki Kancil malah menempel! Kancil menangis dan meminta tolong saat Pak Tani datang menangkapnya.\n\nPak Tani memaafkan Kancil dan menasihatinya agar tidak mencuri lagi. Kancil berjanji akan menjadi anak yang baik.",
+                    category = "Dongeng Rakyat",
+                    sourceAttribution = "Dongeng rakyat Indonesia, domain publik"
+                )
+            )
+            dao.insertStories(stories)
         }
     }
 }

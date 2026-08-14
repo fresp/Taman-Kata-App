@@ -41,4 +41,13 @@ interface TamanKataDao {
 
     @Query("SELECT COUNT(*) FROM stages")
     suspend fun getStageCount(): Int
+
+    @Query("SELECT * FROM stories ORDER BY id ASC")
+    fun getAllStories(): Flow<List<Story>>
+
+    @Query("SELECT COUNT(*) FROM stories")
+    suspend fun getStoryCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertStories(stories: List<Story>)
 }
