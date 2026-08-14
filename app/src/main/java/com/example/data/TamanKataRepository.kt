@@ -51,9 +51,10 @@ class TamanKataRepository(
                 items.add(LearningItem(stageId = 0, text = vowel, syllables = vowel))
             }
             
-            // Stage 1 (Tahap 2: Suku Kata KV - 10 keluarga huruf x 5 vokal = 50 item)
-            // Urutan keluarga huruf berdasarkan frekuensi umum: b, m, p, t, d, n, l, k, s, r
-            val stage1Consonants = listOf("b", "m", "p", "t", "d", "n", "l", "k", "s", "r")
+            // Stage 1 (Tahap 2: Suku Kata KV - 21 keluarga huruf x 5 vokal = 105 item)
+            // Urutan keluarga huruf berdasarkan frekuensi umum: b, m, p, t, d, n, l, k, s, r, g, h, c, j, w, y, f, v, z, ng, ny
+            // Catatan: "ng" dan "ny" adalah konsonan ganda (digraf). Tolong diuji manual apakah TTS Android melafalkan "nga", "nyi", dll dengan wajar.
+            val stage1Consonants = listOf("b", "m", "p", "t", "d", "n", "l", "k", "s", "r", "g", "h", "c", "j", "w", "y", "f", "v", "z", "ng", "ny")
             val vowels = listOf("a", "i", "u", "e", "o")
             stage1Consonants.forEach { consonant ->
                 vowels.forEach { vowel ->
@@ -63,7 +64,12 @@ class TamanKataRepository(
             }
             
             // Stage 2 (Tahap 3 - Suku Kata Tertutup)
-            val stage2Items = listOf("ma-kan", "mi-num", "du-duk", "ku-cing", "pin-tar", "kan-cil", "ban-tal", "can-tik")
+            val stage2Items = listOf(
+                "ma-kan", "mi-num", "du-duk", "ku-cing", "pin-tar", "kan-cil", "ban-tal", "can-tik",
+                "ti-dur", "man-di", "ban-tu", "hu-jan", "a-ngin", "ja-lan", "lom-pat", "ta-ngan",
+                "ka-ki", "gun-ting", "dom-pet", "jen-de-la", "si-sir", "em-ber", "lam-pu", "kur-si",
+                "me-ja", "pen-sil", "se-ko-lah", "gam-bar", "war-na", "bu-lan", "bin-tang", "po-hon"
+            )
             stage2Items.forEach { 
                 items.add(LearningItem(stageId = 2, text = it.replace("-", ""), syllables = it))
             }

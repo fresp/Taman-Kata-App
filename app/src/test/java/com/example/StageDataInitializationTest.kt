@@ -49,9 +49,9 @@ class StageDataInitializationTest {
             assertEquals(it.text, it.syllables)
         }
 
-        // Verify Stage 1 has 50 items (10 consonant families x 5 vowels)
-        assertEquals(50, stage1Items.size)
-        val expectedConsonants = listOf("b", "m", "p", "t", "d", "n", "l", "k", "s", "r")
+        // Verify Stage 1 has 105 items (21 consonant families x 5 vowels)
+        assertEquals(105, stage1Items.size)
+        val expectedConsonants = listOf("b", "m", "p", "t", "d", "n", "l", "k", "s", "r", "g", "h", "c", "j", "w", "y", "f", "v", "z", "ng", "ny")
         val expectedKV = expectedConsonants.flatMap { c -> expectedVowels.map { v -> "$c$v" } }
         assertEquals(expectedKV, stage1Items.map { it.text })
         stage1Items.forEach {
