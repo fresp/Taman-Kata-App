@@ -14,6 +14,8 @@ import com.example.network.GenerationConfig
 import com.example.network.InlineData
 import com.example.network.Part
 import com.example.network.RetrofitClient
+import android.util.Log
+import retrofit2.HttpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,7 +43,7 @@ sealed class SessionState {
     ) : SessionState()
     data class Comprehension(val item: LearningItem, val questions: List<QuestionData>, val currentQuestionIndex: Int, val correctAnswers: Int) : SessionState()
     data class Graduation(val studentName: String, val totalHours: Double) : SessionState()
-    data class Error(val item: LearningItem, val message: String) : SessionState()
+    data class Error(val item: LearningItem, val message: String, val debugMessage: String? = null) : SessionState()
     object Finished : SessionState()
 }
 
@@ -230,16 +232,27 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         viewModelScope.launch {
             val apiKey = com.example.BuildConfig.GEMINI_API_KEY
             if (apiKey.isEmpty() || apiKey.contains("MY_GEMINI_API_KEY")) {
-                _sessionState.value = SessionState.Error(currentItem, "Konfigurasi API belum siap — hubungi orang tua/developer")
+                _sessionState.value = SessionState.Error(
+                    currentItem, 
+                    "Konfigurasi API belum siap — hubungi orang tua/developer",
+                    "API Key is missing or default"
+                )
                 return@launch
             }
 
-            val result = evaluateWithGemini(currentItem.text, audioBase64)
+            val evalResult = evaluateWithGemini(currentItem.text, audioBase64)
             
-            if (result == null) {
-                _sessionState.value = SessionState.Error(currentItem, "Ups, ada gangguan koneksi, coba rekam lagi ya")
+            if (evalResult.isFailure) {
+                val e = evalResult.exceptionOrNull()
+                _sessionState.value = SessionState.Error(
+                    currentItem, 
+                    "Ups, ada gangguan koneksi, coba rekam lagi ya",
+                    e?.message
+                )
                 return@launch
             }
+            
+            val result = evalResult.getOrThrow()
             
             val score = result.score
             val fluency = result.fluency
@@ -303,7 +316,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                         return
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    android.util.Log.e("TamanKata_JSON", "Gagal parsing pertanyaan pemahaman: ${e.javaClass.simpleName} - ${e.message}", e)
                 }
             }
             _sessionState.value = SessionState.Feedback(item, isCorrect = true, showParentHelp = false, fluency = fluency, intonationMatched = intonationMatched)
@@ -419,7 +432,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     // Dengan Gemini Multimodal (Audio + Teks), kita bisa menginstruksikan model untuk berfokus
     // secara spesifik pada "kemiripan fonemik" antara suara dan teks target (sebagai evaluator pengucapan),
     // memberikan hasil (skor & toleransi cadel) yang jauh lebih robust daripada sekadar speech-to-text biasa.
-    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): GeminiEvalResult? = withContext(Dispatchers.IO) {
+    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): Result<GeminiEvalResult> = withContext(Dispatchers.IO) {
         try {
             val prompt = "Kamu adalah guru penilai pengucapan bahasa Indonesia untuk anak-anak TK. " +
                     "Evaluasi apakah audio ucapan anak ini merupakan pengucapan yang benar dari teks target: '${targetText}'. " +
@@ -455,11 +468,16 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             val isCorrect = jsonObj.optBoolean("isCorrect", false)
             val intonationMatched = jsonObj.optBoolean("intonationMatched", true)
             
-            GeminiEvalResult(score, fluency, isCorrect, intonationMatched)
+            Result.success(GeminiEvalResult(score, fluency, isCorrect, intonationMatched))
+        } catch (e: HttpException) {
+            val errorBody = try { e.response()?.errorBody()?.string() } catch(e2: Exception) { "Could not read body" }
+            val errorMsg = "HTTP ${e.code()} - $errorBody"
+            Log.e("TamanKata_GeminiEval", "Evaluasi gagal (HttpException): $errorMsg", e)
+            Result.failure(Exception(errorMsg, e))
         } catch (e: Exception) {
-            e.printStackTrace()
-            // Do NOT fallback to mock here, return null to indicate failure
-            null
+            Log.e("TamanKata_GeminiEval", "Evaluasi gagal: ${e.javaClass.simpleName} - ${e.message}", e)
+            // Do NOT fallback to mock here, return failure to indicate failure
+            Result.failure(e)
         }
     }
 

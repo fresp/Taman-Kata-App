@@ -417,6 +417,17 @@ fun ErrorView(state: SessionState.Error, onRetry: () -> Unit) {
             color = WarmOrange,
             textAlign = TextAlign.Center
         )
+        
+        if (com.example.BuildConfig.DEBUG && state.debugMessage != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "DEBUG: ${state.debugMessage}",
+                style = MaterialTheme.typography.bodySmall,
+                color = androidx.compose.ui.graphics.Color.Gray,
+                textAlign = TextAlign.Center
+            )
+        }
+        
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onRetry,
