@@ -81,13 +81,25 @@ class TamanKataRepository(
             }
             
             // Stage 4 (Tahap 5)
-            val stage4Items = listOf("ke-lin-ci", "se-pa-tu", "ma-ta-ha-ri", "ke-la-pa", "ce-la-na")
+            val stage4Items = listOf(
+                "ke-lin-ci", "se-pa-tu", "ma-ta-ha-ri", "ke-la-pa", "ce-la-na",
+                "ben-de-ra", "ku-pu-ku-pu", "ka-ca-ma-ta", "pe-sa-wat", "ke-le-reng",
+                "ge-lem-bung", "ke-lom-pok", "te-rom-pet", "ke-pom-pong", "ke-me-ja",
+                "le-ma-ri", "bo-ne-ka", "se-pe-da", "se-mang-ka", "pe-ra-hu",
+                "ka-me-ra", "bu-a-ya"
+            )
             stage4Items.forEach {
                 items.add(LearningItem(stageId = 4, text = it.replace("-", ""), syllables = it))
             }
 
             // Stage 5 (Tahap 6)
-            val stage5Items = listOf("Ini bola saya.", "Kucing itu lucu.", "Adik makan nasi.", "Ayo bermain!")
+            val stage5Items = listOf(
+                "Ini bola saya.", "Kucing itu lucu.", "Adik makan nasi.", 
+                "Ibu memasak di dapur.", "Burung terbang tinggi.", "Aku suka buah pisang.",
+                "Siapa namamu?", "Kamu mau ke mana?", "Apa warna bajumu?", 
+                "Di mana buku itu?", "Kapan kita pulang?",
+                "Ayo bermain!", "Hati-hati di jalan!", "Hore, kita menang!", "Wah, bunga itu indah!"
+            )
             stage5Items.forEach {
                 items.add(LearningItem(stageId = 5, text = it, syllables = it))
             }
@@ -98,6 +110,15 @@ class TamanKataRepository(
             
             val p2Extra = "{\"q1\": \"Siapa yang lari?\", \"o1\": [\"Kelinci 🐇\", \"Kura-kura 🐢\"], \"a1\": 0, \"q2\": \"Di mana kelinci lari?\", \"o2\": [\"Di taman 🌳\", \"Di rumah 🏠\"], \"a2\": 0}"
             items.add(LearningItem(stageId = 6, text = "Kelinci suka lari. Kelinci lari di taman. Taman itu sangat luas.", extraData = p2Extra))
+            
+            val p3Extra = "{\"q1\": \"Hari apa ini?\", \"o1\": [\"Minggu 📅\", \"Senin 📅\"], \"a1\": 0, \"q2\": \"Siti dan ibu buat apa?\", \"o2\": [\"Kue 🍰\", \"Roti 🍞\"], \"a2\": 0}"
+            items.add(LearningItem(stageId = 6, text = "Hari ini hari Minggu. Siti membantu ibu di dapur. Mereka membuat kue bolu.", extraData = p3Extra))
+
+            val p4Extra = "{\"q1\": \"Di mana burung berada?\", \"o1\": [\"Pohon 🌳\", \"Sangkar 🏡\"], \"a1\": 0, \"q2\": \"Apa warna bulu burung?\", \"o2\": [\"Merah 🔴\", \"Biru 🔵\"], \"a2\": 1}"
+            items.add(LearningItem(stageId = 6, text = "Ada burung di atas pohon. Bulunya warna biru yang cantik. Burung itu suka bernyanyi.", extraData = p4Extra))
+
+            val p5Extra = "{\"q1\": \"Ke mana keluarga Rina pergi?\", \"o1\": [\"Gunung ⛰️\", \"Pantai 🏖️\"], \"a1\": 1, \"q2\": \"Apa yang ayah lakukan?\", \"o2\": [\"Baca buku 📖\", \"Tidur 😴\"], \"a2\": 0}"
+            items.add(LearningItem(stageId = 6, text = "Keluarga Rina pergi ke pantai. Rina main pasir di pinggir laut. Ayah membaca buku cerita.", extraData = p5Extra))
             
             // Rest
             for (i in 7..8) {
