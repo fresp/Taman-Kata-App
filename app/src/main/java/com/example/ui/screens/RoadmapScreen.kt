@@ -52,6 +52,18 @@ fun RoadmapScreen(
     onNavigateToDashboard: () -> Unit
 ) {
     val stages by viewModel.stages.collectAsState()
+    val sessionHistory by viewModel.sessionHistory.collectAsState()
+    
+    val currentLevel = stages.count { it.isUnlocked }
+    
+    val recentSessions = sessionHistory.takeLast(5)
+    val avgScore = if (recentSessions.isNotEmpty()) recentSessions.map { it.averageScore }.average() else 0.0
+    val starCount = when {
+        avgScore >= 90 -> 3
+        avgScore >= 75 -> 2
+        avgScore >= 60 -> 1
+        else -> 0
+    }
 
     Column(
         modifier = Modifier
@@ -89,9 +101,14 @@ fun RoadmapScreen(
                             color = Color.White
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = WarmOrange, modifier = Modifier.size(16.dp))
-                            Icon(Icons.Default.Star, contentDescription = null, tint = WarmOrange, modifier = Modifier.size(16.dp))
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(16.dp))
+                            for (i in 1..3) {
+                                Icon(
+                                    Icons.Default.Star, 
+                                    contentDescription = null, 
+                                    tint = if (i <= starCount) WarmOrange else Color.White.copy(alpha = 0.3f), 
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -102,7 +119,7 @@ fun RoadmapScreen(
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f))
                 ) {
                     Text(
-                        text = "Level 2",
+                        text = "Level $currentLevel",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
