@@ -95,6 +95,17 @@ fun TamanKataNavHost(
                 },
                 onNavigateToDashboard = {
                     navController.navigate("dashboard")
+                },
+                onNavigateToCollection = {
+                    navController.navigate("koleksi")
+                }
+            )
+        }
+        composable("koleksi") {
+            com.example.ui.screens.CollectionScreen(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

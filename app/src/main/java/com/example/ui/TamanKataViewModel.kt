@@ -91,6 +91,13 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             initialValue = emptyList()
         )
 
+    val masteredItems: StateFlow<List<LearningItem>> = repository.masteredItems
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     private val _sessionState = MutableStateFlow<SessionState>(SessionState.Loading)
     val sessionState = _sessionState.asStateFlow()
 

@@ -49,7 +49,8 @@ import com.example.ui.theme.SoftYellow
 fun RoadmapScreen(
     viewModel: TamanKataViewModel,
     onStageSelected: (Int) -> Unit,
-    onNavigateToDashboard: () -> Unit
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToCollection: () -> Unit
 ) {
     val stages by viewModel.stages.collectAsState()
     val sessionHistory by viewModel.sessionHistory.collectAsState()
@@ -210,7 +211,9 @@ fun RoadmapScreen(
                 shape = RoundedCornerShape(50),
                 color = Color.White,
                 border = BorderStroke(2.dp, PrimaryGreen),
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .clickable { onNavigateToCollection() }
             ) {
                 Text(
                     text = "KOLEKSI",

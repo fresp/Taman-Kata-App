@@ -18,6 +18,9 @@ interface TamanKataDao {
     @Query("SELECT * FROM session_history ORDER BY timestamp DESC")
     fun getSessionHistory(): Flow<List<SessionHistory>>
 
+    @Query("SELECT * FROM learning_items WHERE status = 'MASTERED' ORDER BY stageId ASC, id ASC")
+    fun getMasteredItems(): Flow<List<LearningItem>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertStages(stages: List<Stage>)
 

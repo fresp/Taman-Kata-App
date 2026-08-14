@@ -36,6 +36,7 @@ class OfflineFallbackTest {
         override fun getAllStages(): Flow<List<Stage>> = flowOf(stages)
         override fun getItemsForStage(stageId: Int): Flow<List<LearningItem>> = flowOf(items.filter { it.stageId == stageId })
         override fun getSessionHistory(): Flow<List<SessionHistory>> = flowOf(history)
+        override fun getMasteredItems(): Flow<List<LearningItem>> = flowOf(items.filter { it.status == "MASTERED" })
         override suspend fun insertStages(stages: List<Stage>) { this.stages.addAll(stages) }
         override suspend fun insertItems(items: List<LearningItem>) { this.items.addAll(items) }
         override suspend fun updateStage(stage: Stage) {}
