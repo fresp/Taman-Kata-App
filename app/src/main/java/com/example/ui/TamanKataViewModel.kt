@@ -55,12 +55,15 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     private var sessionQueue = LinkedList<LearningItem>()
     private var allSessionItems = listOf<LearningItem>()
     private var totalScoreSum = 0
+    private var totalFluencySum = 0
+    private var independentItemsCount = 0
     private var itemsEvaluatedCount = 0
     private var currentStageId = 0
     private var sessionStartTime = 0L
 
     // Tracks how many times current item has failed consecutively
     private var currentItemFailCount = 0
+    private var currentItemTtsCount = 0
 
     init {
         viewModelScope.launch {
@@ -71,9 +74,12 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     fun startSession(stageId: Int) {
         currentStageId = stageId
         totalScoreSum = 0
+        totalFluencySum = 0
+        independentItemsCount = 0
         itemsEvaluatedCount = 0
         sessionStartTime = System.currentTimeMillis()
         currentItemFailCount = 0
+        currentItemTtsCount = 0
 
         viewModelScope.launch {
             // For testing, just take dummy syllables
@@ -96,7 +102,14 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             _sessionState.value = SessionState.Finished
         } else {
             currentItemFailCount = 0
+            currentItemTtsCount = 0
             _sessionState.value = SessionState.Playing(next)
+        }
+    }
+
+    fun onTtsPlayed(isReplay: Boolean) {
+        if (isReplay) {
+            currentItemTtsCount++
         }
     }
 
@@ -117,9 +130,10 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         viewModelScope.launch {
             val result = evaluateWithGemini(currentItem.text, audioBase64)
             val score = result.first
-            val isCorrect = result.second
+            val fluency = result.second
+            val isCorrect = result.third
 
-            handleEvaluationResult(currentItem, score, isCorrect)
+            handleEvaluationResult(currentItem, score, fluency, isCorrect)
         }
     }
     
@@ -130,17 +144,23 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         
         viewModelScope.launch {
             // Treat as 100 if correct manually, else 0
-            handleEvaluationResult(currentItem, if (isCorrect) 100 else 0, isCorrect, true)
+            handleEvaluationResult(currentItem, if (isCorrect) 100 else 0, 100, isCorrect, true)
         }
     }
 
-    private suspend fun handleEvaluationResult(item: LearningItem, score: Int, isCorrect: Boolean, isFromParent: Boolean = false) {
+    private suspend fun handleEvaluationResult(item: LearningItem, score: Int, fluency: Int, isCorrect: Boolean, isFromParent: Boolean = false) {
         totalScoreSum += score
+        totalFluencySum += fluency
+        if (currentItemTtsCount == 0) {
+            independentItemsCount++
+        }
         itemsEvaluatedCount++
         
         // Save progress to DB
+        val newFluency = maxOf(item.highestFluencyScore, fluency)
         repository.updateItem(item.copy(
             lastAccuracyScore = score,
+            highestFluencyScore = newFluency,
             status = if (isCorrect) "MASTERED" else "IN_PROGRESS",
             attemptCount = item.attemptCount + 1,
             lastTrainedTimestamp = System.currentTimeMillis()
@@ -170,14 +190,23 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     fun finishSession(onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean) -> Unit) {
         val duration = ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt()
         val avgScore = if (itemsEvaluatedCount > 0) totalScoreSum / itemsEvaluatedCount else 0
-        val passed = avgScore >= 70
+        val avgFluency = if (itemsEvaluatedCount > 0) totalFluencySum / itemsEvaluatedCount else 0
+        val indepPercentage = if (itemsEvaluatedCount > 0) (independentItemsCount * 100) / itemsEvaluatedCount else 0
+        
+        val passed = when (currentStageId) {
+            2 -> avgScore >= 80 && avgFluency >= 70 // Tahap 3 (KVK)
+            3 -> avgScore >= 75 && indepPercentage >= 80 // Tahap 4 (Kluster)
+            else -> avgScore >= 70 // Tahap lainnya
+        }
 
         viewModelScope.launch {
             repository.saveSession(
                 SessionHistory(
                     durationSeconds = duration,
                     itemsTrainedCount = itemsEvaluatedCount,
-                    averageScore = avgScore
+                    averageScore = avgScore,
+                    averageFluency = avgFluency,
+                    independencePercentage = indepPercentage
                 )
             )
             // If passed, unlock next stage
@@ -200,13 +229,14 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     // Dengan Gemini Multimodal (Audio + Teks), kita bisa menginstruksikan model untuk berfokus
     // secara spesifik pada "kemiripan fonemik" antara suara dan teks target (sebagai evaluator pengucapan),
     // memberikan hasil (skor & toleransi cadel) yang jauh lebih robust daripada sekadar speech-to-text biasa.
-    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): Pair<Int, Boolean> = withContext(Dispatchers.IO) {
+    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): Triple<Int, Int, Boolean> = withContext(Dispatchers.IO) {
         try {
             val prompt = "Kamu adalah guru penilai pengucapan bahasa Indonesia untuk anak-anak TK. " +
                     "Evaluasi apakah audio ucapan anak ini merupakan pengucapan yang benar dari teks target: '${targetText}'. " +
                     "Nilai kemiripan fonemik saja, bukan transkripsi kalimat utuh (karena ini suku kata pendek). " +
                     "Maklumi pelafalan anak kecil yang mungkin kurang sempurna/cadel. " +
-                    "Keluarkan JSON tanpa format markdown, murni berisi: {\"score\": <0-100>, \"isCorrect\": <boolean>}. " +
+                    "Berikan juga skor 'fluency' (kelancaran, 0-100) berdasarkan ada tidaknya jeda mengeja antar suku kata (makin lancar tanpa jeda = makin tinggi). " +
+                    "Keluarkan JSON tanpa format markdown, murni berisi: {\"score\": <0-100>, \"fluency\": <0-100>, \"isCorrect\": <boolean>}. " +
                     "Syarat isCorrect true adalah jika score >= 70."
 
             val request = GenerateContentRequest(
@@ -224,7 +254,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             val apiKey = BuildConfig.GEMINI_API_KEY
             if (apiKey.isEmpty() || apiKey.contains("MY_GEMINI_API_KEY")) {
                 // Mock for testing if no real key
-                return@withContext Pair(85, true)
+                return@withContext Triple(85, 90, true)
             }
 
             val response = RetrofitClient.service.generateContent(apiKey, request)
@@ -234,13 +264,14 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             val cleanJson = jsonText.replace("```json", "").replace("```", "").trim()
             val jsonObj = JSONObject(cleanJson)
             val score = jsonObj.optInt("score", 0)
+            val fluency = jsonObj.optInt("fluency", 0)
             val isCorrect = jsonObj.optBoolean("isCorrect", false)
             
-            Pair(score, isCorrect)
+            Triple(score, fluency, isCorrect)
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback mock
-            Pair(85, true)
+            Triple(85, 90, true)
         }
     }
 

@@ -117,10 +117,13 @@ fun SessionScreen(
             }
             is SessionState.Playing -> {
                 PlayingView(
-                    text = state.item.text,
+                    item = state.item,
                     isRecording = state.isRecording,
                     isEvaluating = state.isEvaluating,
-                    onPlaySound = { ttsHelper.speak(state.item.text) },
+                    onPlaySound = { isReplay -> 
+                        viewModel.onTtsPlayed(isReplay)
+                        ttsHelper.speak(state.item.text) 
+                    },
                     onToggleRecord = {
                         if (hasMicPermission) {
                             if (state.isRecording) {
@@ -157,16 +160,16 @@ fun SessionScreen(
 
 @Composable
 fun PlayingView(
-    text: String,
+    item: com.example.data.LearningItem,
     isRecording: Boolean,
     isEvaluating: Boolean,
-    onPlaySound: () -> Unit,
+    onPlaySound: (Boolean) -> Unit,
     onToggleRecord: () -> Unit
 ) {
     // Auto-play TTS on first composition
-    LaunchedEffect(text) {
+    LaunchedEffect(item.text) {
         delay(500)
-        onPlaySound()
+        onPlaySound(false)
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -179,19 +182,18 @@ fun PlayingView(
             border = BorderStroke(8.dp, WarmOrange)
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp, fontWeight = FontWeight.Black),
-                    color = TextDark,
-                    textAlign = TextAlign.Center
+                FadingScaffoldText(
+                    text = item.text,
+                    syllables = item.syllables,
+                    score = item.lastAccuracyScore
                 )
                 
                 // Sound button
                 IconButton(
-                    onClick = onPlaySound,
+                    onClick = { onPlaySound(true) },
                     modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = "Dengarkan", tint = WarmOrange, modifier = Modifier.size(48.dp))
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Dengarkan", tint = WarmOrange, modifier = Modifier.size(48.dp))
                 }
             }
         }
@@ -226,6 +228,46 @@ fun PlayingView(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun FadingScaffoldText(text: String, syllables: String, score: Int) {
+    val parts = if (syllables.isNotEmpty()) syllables.split("-") else listOf(text)
+    
+    if (parts.size <= 1 || score >= 80) {
+        // High mastery or no syllables to split: Plain text
+        Text(
+            text = text,
+            style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp, fontWeight = FontWeight.Black),
+            color = TextDark,
+            textAlign = TextAlign.Center
+        )
+    } else if (score >= 40) {
+        // Medium mastery: slight spacing
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            parts.forEach { part ->
+                Text(
+                    text = part,
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp, fontWeight = FontWeight.Black),
+                    color = TextDark,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    } else {
+        // Low mastery: high contrast colors for each syllable
+        val colors = listOf(PrimaryGreen, ActionOrange, WarmOrange)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            parts.forEachIndexed { index, part ->
+                Text(
+                    text = part,
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp, fontWeight = FontWeight.Black),
+                    color = colors[index % colors.size],
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

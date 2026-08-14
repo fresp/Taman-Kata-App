@@ -85,11 +85,19 @@ fun SessionHistoryCard(session: SessionHistory) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Durasi: ${session.durationSeconds} dtk", style = MaterialTheme.typography.bodyLarge)
-                Text("Item: ${session.itemsTrainedCount}", style = MaterialTheme.typography.bodyLarge)
+                Text("Durasi: ${session.durationSeconds} dtk", style = MaterialTheme.typography.bodyMedium)
+                Text("Item: ${session.itemsTrainedCount}", style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Skor Rata-rata: ${session.averageScore}", style = MaterialTheme.typography.bodyLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Akurasi: ${session.averageScore}%", style = MaterialTheme.typography.bodyLarge)
+                Text("Kemandirian: ${session.independencePercentage}%", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Kelancaran (Fluency): ${session.averageFluency}%", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

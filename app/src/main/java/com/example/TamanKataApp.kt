@@ -17,7 +17,9 @@ class TamanKataApp : Application() {
             this,
             TamanKataDatabase::class.java,
             "taman_kata_db"
-        ).build()
+        )
+        .fallbackToDestructiveMigration()
+        .build()
         repository = TamanKataRepository(database.tamanKataDao())
     }
 }
