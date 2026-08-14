@@ -1,0 +1,6 @@
+{
+  "name": "Taman Kata",
+  "description": "Aplikasi belajar membaca untuk anak TK B dengan metode tanpa mengeja.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
