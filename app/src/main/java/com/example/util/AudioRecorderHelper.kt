@@ -8,10 +8,13 @@ import java.io.File
 
 class AudioRecorderHelper(private val context: Context) {
     private var recorder: MediaRecorder? = null
-    private var currentOutputFile: File? = null
+    var currentOutputFile: File? = null
+
+    val lastRecordingPath: String?
+        get() = currentOutputFile?.absolutePath
 
     fun startRecording() {
-        val fileName = "speech_record_${System.currentTimeMillis()}.m4a"
+        val fileName = "speech_record_last.m4a"
         currentOutputFile = File(context.cacheDir, fileName)
 
         recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -46,8 +49,7 @@ class AudioRecorderHelper(private val context: Context) {
             currentOutputFile?.let { file ->
                 if (file.exists()) {
                     val bytes = file.readBytes()
-                    // Cleanup
-                    file.delete()
+                    // Cleanup removed to allow playback
                     Base64.encodeToString(bytes, Base64.NO_WRAP)
                 } else {
                     null

@@ -20,7 +20,10 @@ interface GeminiApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "https://generativelanguage.googleapis.com/"
+    // Ganti URL ini dengan URL Cloud Run Anda saat deployment
+    // Contoh: "https://taman-kata-backend-xxxxx.a.run.app/"
+    private const val CUSTOM_BACKEND_URL = "" 
+    private val BASE_URL = CUSTOM_BACKEND_URL.ifEmpty { "https://generativelanguage.googleapis.com/" }
 
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())

@@ -157,7 +157,14 @@ fun SessionScreen(
                 FeedbackView(
                     state = state,
                     onNext = { viewModel.continueToNext() },
-                    onParentDecide = { isCorrect -> viewModel.manualParentEvaluation(isCorrect) }
+                    onParentDecide = { isCorrect -> viewModel.manualParentEvaluation(isCorrect) },
+                    lastRecordingPath = audioRecorder.lastRecordingPath
+                )
+            }
+            is SessionState.Error -> {
+                ErrorView(
+                    state = state,
+                    onRetry = { viewModel.resetToPlaying() }
                 )
             }
             is SessionState.Comprehension -> {
@@ -295,10 +302,38 @@ fun FadingScaffoldText(text: String, syllables: String, score: Int) {
 }
 
 @Composable
+fun ErrorView(state: SessionState.Error, onRetry: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(32.dp)
+    ) {
+        Text(
+            text = "🔌",
+            style = MaterialTheme.typography.displayLarge.copy(fontSize = 72.sp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = state.message,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = WarmOrange,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+        ) {
+            Text("Coba Lagi", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@Composable
 fun FeedbackView(
     state: SessionState.Feedback,
     onNext: () -> Unit,
-    onParentDecide: (Boolean) -> Unit
+    onParentDecide: (Boolean) -> Unit,
+    lastRecordingPath: String? = null
 ) {
     LaunchedEffect(state.isCorrect, state.showParentHelp) {
         if (!state.showParentHelp) {
@@ -309,6 +344,12 @@ fun FeedbackView(
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (state.showParentHelp) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val mediaPlayer = remember { android.media.MediaPlayer() }
+            DisposableEffect(Unit) {
+                onDispose { mediaPlayer.release() }
+            }
+
             Surface(
                 modifier = Modifier.padding(32.dp).shadow(8.dp, RoundedCornerShape(24.dp)),
                 shape = RoundedCornerShape(24.dp),
@@ -319,7 +360,29 @@ fun FeedbackView(
                     Text("Bantuan Ayah/Bunda", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black), color = ActionOrange)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Apakah ucapan anak sudah benar?", textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (lastRecordingPath != null) {
+                        Button(
+                            onClick = {
+                                try {
+                                    mediaPlayer.reset()
+                                    mediaPlayer.setDataSource(lastRecordingPath)
+                                    mediaPlayer.prepare()
+                                    mediaPlayer.start()
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ActionOrange)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Play")
+                            Spacer(Modifier.width(8.dp))
+                            Text("Putar Suara Anak")
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Button(onClick = { onParentDecide(false) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) {
                             Text("Coba Lagi")

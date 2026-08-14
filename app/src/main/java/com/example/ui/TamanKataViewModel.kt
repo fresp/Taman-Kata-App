@@ -34,6 +34,7 @@ sealed class SessionState {
     data class Feedback(val item: LearningItem, val isCorrect: Boolean, val showParentHelp: Boolean = false, val fluency: Int = 0, val intonationMatched: Boolean = false) : SessionState()
     data class Comprehension(val item: LearningItem, val questions: List<QuestionData>, val currentQuestionIndex: Int, val correctAnswers: Int) : SessionState()
     data class Graduation(val studentName: String, val totalHours: Double) : SessionState()
+    data class Error(val item: LearningItem, val message: String) : SessionState()
     object Finished : SessionState()
 }
 
@@ -156,6 +157,12 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
 
         viewModelScope.launch {
             val result = evaluateWithGemini(currentItem.text, audioBase64)
+            
+            if (result == null) {
+                _sessionState.value = SessionState.Error(currentItem, "Ups, ada gangguan koneksi, coba rekam lagi ya")
+                return@launch
+            }
+            
             val score = result.score
             val fluency = result.fluency
             val isCorrect = result.isCorrect
@@ -261,6 +268,13 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         nextItem()
     }
 
+    fun resetToPlaying() {
+        val currentState = _sessionState.value
+        if (currentState is SessionState.Error) {
+            _sessionState.value = SessionState.Playing(currentState.item)
+        }
+    }
+
     fun finishSession(onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean) -> Unit) {
         val duration = ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt()
         val avgScore = if (itemsEvaluatedCount > 0) totalScoreSum / itemsEvaluatedCount else 0
@@ -319,7 +333,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     // Dengan Gemini Multimodal (Audio + Teks), kita bisa menginstruksikan model untuk berfokus
     // secara spesifik pada "kemiripan fonemik" antara suara dan teks target (sebagai evaluator pengucapan),
     // memberikan hasil (skor & toleransi cadel) yang jauh lebih robust daripada sekadar speech-to-text biasa.
-    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): GeminiEvalResult = withContext(Dispatchers.IO) {
+    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): GeminiEvalResult? = withContext(Dispatchers.IO) {
         try {
             val prompt = "Kamu adalah guru penilai pengucapan bahasa Indonesia untuk anak-anak TK. " +
                     "Evaluasi apakah audio ucapan anak ini merupakan pengucapan yang benar dari teks target: '${targetText}'. " +
@@ -362,8 +376,8 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             GeminiEvalResult(score, fluency, isCorrect, intonationMatched)
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback mock
-            GeminiEvalResult(85, 90, true, true)
+            // Do NOT fallback to mock here, return null to indicate failure
+            null
         }
     }
 
