@@ -12,7 +12,16 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 interface GeminiApiService {
-    @POST("v1beta/models/gemini-2.5-flash:generateContent")
+    companion object {
+        // Model: gemini-3.6-flash (dicek 14 Agustus 2026).
+        // Google sering deprecate model Gemini cukup cepat — kalau muncul
+        // error 404 "no longer available to new users" lagi di masa depan,
+        // cek model terbaru di https://ai.google.dev/gemini-api/docs/models
+        // dan ganti di sini.
+        const val MODEL_NAME = "gemini-3.6-flash"
+    }
+
+    @POST("v1beta/models/$MODEL_NAME:generateContent")
     suspend fun generateContent(
         @Query("key") apiKey: String,
         @Body request: GenerateContentRequest
