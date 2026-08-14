@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
 fun SessionScreen(
     stageId: Int,
     viewModel: TamanKataViewModel,
-    onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean) -> Unit
+    onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean, isTimeLimit: Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val sessionState by viewModel.sessionState.collectAsState()
@@ -56,6 +56,15 @@ fun SessionScreen(
     val ttsHelper = remember { TTSHelper(context) }
     val audioRecorder = remember { AudioRecorderHelper(context) }
     val coroutineScope = rememberCoroutineScope()
+
+    var isSoftLimit by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3000L)
+            isSoftLimit = viewModel.isSoftLimitReached()
+        }
+    }
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -96,27 +105,74 @@ fun SessionScreen(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Header
+        // Header with Mascot, Soft Limit Hint, and Non-numeric Item Progress
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val expression = when (val state = sessionState) {
-                is SessionState.Feedback -> {
-                    if (state.isCorrect) {
-                        if (state.item.stageId == 5 && state.item.text.endsWith("!") && state.intonationMatched) {
-                            KikiExpression.CHEERING
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val expression = when (val state = sessionState) {
+                    is SessionState.Feedback -> {
+                        if (state.isCorrect) {
+                            if (state.item.stageId == 5 && state.item.text.endsWith("!") && state.intonationMatched) {
+                                KikiExpression.CHEERING
+                            } else {
+                                KikiExpression.HAPPY
+                            }
                         } else {
-                            KikiExpression.HAPPY
+                            KikiExpression.NEUTRAL
                         }
-                    } else {
-                        KikiExpression.NEUTRAL
+                    }
+                    else -> if (isSoftLimit) KikiExpression.HAPPY else KikiExpression.NEUTRAL
+                }
+                KikiMascot(expression = expression, modifier = Modifier.size(72.dp))
+
+                AnimatedVisibility(
+                    visible = isSoftLimit,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFFFF9C4),
+                        border = BorderStroke(2.dp, WarmOrange.copy(alpha = 0.5f)),
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Text(
+                            text = "🌟 Sebentar lagi selesai ya!",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextDark,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
                     }
                 }
-                else -> KikiExpression.NEUTRAL
             }
-            KikiMascot(expression = expression, modifier = Modifier.size(80.dp))
+
+            // Friendly non-numeric Item Progress Card
+            val (currentItemNum, totalItemsNum) = viewModel.getCurrentItemProgress()
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                border = BorderStroke(2.dp, PrimaryGreen.copy(alpha = 0.4f)),
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "⭐ $currentItemNum / $totalItemsNum",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = TextDark
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -185,7 +241,7 @@ fun SessionScreen(
                 GraduationCertificateView(
                     studentName = state.studentName,
                     totalHours = state.totalHours,
-                    onFinish = { onSessionFinished(0, 0, 100, true) }
+                    onFinish = { onSessionFinished(0, 0, 100, true, false) }
                 )
             }
             else -> {}

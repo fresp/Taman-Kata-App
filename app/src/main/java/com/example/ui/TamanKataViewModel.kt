@@ -74,6 +74,24 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     // Tracks how many times current item has failed consecutively
     private var currentItemFailCount = 0
     private var currentItemTtsCount = 0
+    private var isTimeLimitEnded = false
+
+    fun isSoftLimitReached(): Boolean {
+        return sessionStartTime > 0 && (System.currentTimeMillis() - sessionStartTime) >= SOFT_LIMIT_MS
+    }
+
+    fun isHardLimitReached(): Boolean {
+        return sessionStartTime > 0 && (System.currentTimeMillis() - sessionStartTime) >= HARD_LIMIT_MS
+    }
+
+    fun getTotalSessionItems(): Int = allSessionItems.size
+    
+    fun getCurrentItemProgress(): Pair<Int, Int> {
+        val total = allSessionItems.size.coerceAtLeast(1)
+        val remaining = sessionQueue.size + if (_sessionState.value is SessionState.Playing || _sessionState.value is SessionState.Feedback || _sessionState.value is SessionState.Comprehension) 1 else 0
+        val current = (total - remaining + 1).coerceIn(1, total)
+        return Pair(current, total)
+    }
 
     init {
         viewModelScope.launch {
@@ -93,6 +111,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         sessionStartTime = System.currentTimeMillis()
         currentItemFailCount = 0
         currentItemTtsCount = 0
+        isTimeLimitEnded = false
 
         viewModelScope.launch {
             val testingItems = if (stageId == 7) {
@@ -275,7 +294,12 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     }
 
     fun continueToNext() {
-        nextItem()
+        if (isHardLimitReached()) {
+            isTimeLimitEnded = true
+            _sessionState.value = SessionState.Finished
+        } else {
+            nextItem()
+        }
     }
 
     fun resetToPlaying() {
@@ -285,7 +309,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         }
     }
 
-    fun finishSession(onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean) -> Unit) {
+    fun finishSession(onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean, isTimeLimit: Boolean) -> Unit) {
         val duration = ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt()
         val avgScore = if (itemsEvaluatedCount > 0) totalScoreSum / itemsEvaluatedCount else 0
         val avgFluency = if (itemsEvaluatedCount > 0) totalFluencySum / itemsEvaluatedCount else 0
@@ -302,6 +326,8 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             7 -> avgScore >= 75 && avgWcpm >= 20 // Tahap 8 WCPM requirement (e.g., 20 words per minute)
             else -> avgScore >= 70 // Tahap lainnya
         }
+
+        val timeLimitEnded = isTimeLimitEnded
 
         viewModelScope.launch {
             repository.saveSession(
@@ -324,13 +350,13 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                 }
             }
             
-            if (passed && currentStageId == 7) {
+            if (passed && currentStageId == 7 && !timeLimitEnded) {
                 // Graduate!
                 val totalSecs = sessionHistory.value.sumOf { it.durationSeconds }
                 val hours = totalSecs / 3600.0
                 _sessionState.value = SessionState.Graduation("Anak Hebat", hours)
             } else {
-                onSessionFinished(duration, allSessionItems.size, avgScore, passed)
+                onSessionFinished(duration, allSessionItems.size, avgScore, passed, timeLimitEnded)
             }
         }
     }
@@ -397,6 +423,11 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     }
 
     companion object {
+        // Durasi sesi belajar ideal untuk anak TK B (15 - 20 menit)
+        // Dibuat variabel di companion object agar mudah disesuaikan atau diuji
+        var SOFT_LIMIT_MS = 15 * 60 * 1000L // 15 menit (dalam milidetik)
+        var HARD_LIMIT_MS = 20 * 60 * 1000L // 20 menit (dalam milidetik)
+
         fun provideFactory(repository: TamanKataRepository): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {

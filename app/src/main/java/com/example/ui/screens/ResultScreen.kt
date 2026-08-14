@@ -21,11 +21,13 @@ import com.example.ui.theme.WarmOrange
 import com.example.ui.theme.WarmOrangeShadow
 import com.example.ui.theme.PrimaryGreen
 import androidx.compose.foundation.BorderStroke
+import com.example.ui.theme.TextDark
 
 @Composable
 fun ResultScreen(
     avgScore: Int,
     passed: Boolean,
+    isTimeLimit: Boolean = false,
     onBackToRoadmap: () -> Unit
 ) {
     val stars = when {
@@ -44,44 +46,58 @@ fun ResultScreen(
         verticalArrangement = Arrangement.Center
     ) {
         KikiMascot(
-            expression = if (passed) KikiExpression.HAPPY else KikiExpression.NEUTRAL,
+            expression = if (isTimeLimit || passed) KikiExpression.HAPPY else KikiExpression.NEUTRAL,
             modifier = Modifier.size(150.dp)
         )
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         Text(
-            text = if (passed) "Hore! Berhasil!" else "Ayo coba lagi!",
-            style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Black),
-            color = PrimaryGreen
+            text = if (isTimeLimit) "Waktunya Istirahat Dulu! 🌟" else if (passed) "Hore! Berhasil!" else "Ayo coba lagi!",
+            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black),
+            color = PrimaryGreen,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        if (isTimeLimit) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Hebat sekali belajarnya hari ini!\nNanti kita lanjut lagi ya. Semua bintangmu tersimpan rapi ✨",
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                color = TextDark,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             for (i in 1..3) {
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = "Star",
-                    modifier = Modifier.size(80.dp),
+                    modifier = Modifier.size(64.dp),
                     tint = if (i <= stars) WarmOrange else Color.Black.copy(alpha = 0.1f)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(64.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
         Button(
             onClick = onBackToRoadmap,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
+                .height(72.dp)
                 .shadow(8.dp, RoundedCornerShape(24.dp)),
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = WarmOrange),
             border = BorderStroke(4.dp, Color.White)
         ) {
-            Text("Kembali ke Peta", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black))
+            Text(
+                if (isTimeLimit) "Selesai & Istirahat" else "Kembali ke Peta",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black)
+            )
         }
     }
 }

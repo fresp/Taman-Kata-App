@@ -45,22 +45,25 @@ fun TamanKataNavHost(
             SessionScreen(
                 stageId = stageId,
                 viewModel = viewModel,
-                onSessionFinished = { duration, itemsCount, avgScore, passed ->
-                    navController.navigate("result/$avgScore/$passed") {
+                onSessionFinished = { duration, itemsCount, avgScore, passed, isTimeLimit ->
+                    navController.navigate("result/$avgScore/$passed/$isTimeLimit") {
                         popUpTo("session/{stageId}") { inclusive = true }
                     }
                 }
             )
         }
-        composable("result/{avgScore}/{passed}") { backStackEntry ->
+        composable("result/{avgScore}/{passed}/{isTimeLimit}") { backStackEntry ->
             val avgScoreStr = backStackEntry.arguments?.getString("avgScore")
             val avgScore = avgScoreStr?.toIntOrNull() ?: 0
             val passedStr = backStackEntry.arguments?.getString("passed")
             val passed = passedStr?.toBoolean() ?: false
+            val isTimeLimitStr = backStackEntry.arguments?.getString("isTimeLimit")
+            val isTimeLimit = isTimeLimitStr?.toBoolean() ?: false
 
             ResultScreen(
                 avgScore = avgScore,
                 passed = passed,
+                isTimeLimit = isTimeLimit,
                 onBackToRoadmap = {
                     navController.navigate("roadmap") {
                         popUpTo("roadmap") { inclusive = true }
