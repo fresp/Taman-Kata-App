@@ -1,11 +1,21 @@
 package com.example.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.ui.screens.*
+import com.example.ui.theme.LightBackground
+import com.example.ui.theme.PrimaryGreen
 
 @Composable
 fun TamanKataNavHost(
@@ -13,11 +23,61 @@ fun TamanKataNavHost(
     viewModel: TamanKataViewModel,
     modifier: Modifier = Modifier
 ) {
+    val hasConsented by viewModel.hasConsented.collectAsState()
+    val consentTimestamp by viewModel.consentTimestamp.collectAsState()
+
+    if (hasConsented == null) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(LightBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryGreen)
+        }
+        return
+    }
+
+    LaunchedEffect(hasConsented) {
+        if (hasConsented == false) {
+            navController.navigate("consent") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    val startDestination = if (hasConsented == true) "splash" else "consent"
+
     NavHost(
         navController = navController,
-        startDestination = "splash",
+        startDestination = startDestination,
         modifier = modifier
     ) {
+        composable("consent") {
+            ConsentScreen(
+                isReviewMode = false,
+                consentTimestamp = consentTimestamp,
+                onAcceptConsent = {
+                    viewModel.setConsent(true)
+                    navController.navigate("splash") {
+                        popUpTo("consent") { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable("consent_review") {
+            ConsentScreen(
+                isReviewMode = true,
+                consentTimestamp = consentTimestamp,
+                onAcceptConsent = {},
+                onRevokeConsent = {
+                    viewModel.revokeConsent()
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
         composable("splash") {
             SplashScreen(
                 onTimeout = {
@@ -76,8 +136,12 @@ fun TamanKataNavHost(
                 viewModel = viewModel,
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToPrivacyInfo = {
+                    navController.navigate("consent_review")
                 }
             )
         }
     }
 }
+

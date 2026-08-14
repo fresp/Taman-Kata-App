@@ -49,6 +49,32 @@ data class QuestionData(val question: String, val options: List<String>, val cor
 
 class TamanKataViewModel(private val repository: TamanKataRepository) : ViewModel() {
 
+    val hasConsented: StateFlow<Boolean?> = repository.hasConsented
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null
+        )
+
+    val consentTimestamp: StateFlow<Long> = repository.consentTimestamp
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0L
+        )
+
+    fun setConsent(consented: Boolean) {
+        viewModelScope.launch {
+            repository.saveConsent(consented)
+        }
+    }
+
+    fun revokeConsent() {
+        viewModelScope.launch {
+            repository.revokeConsent()
+        }
+    }
+
     val stages: StateFlow<List<Stage>> = repository.allStages
         .stateIn(
             scope = viewModelScope,

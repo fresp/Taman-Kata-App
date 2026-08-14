@@ -20,11 +20,15 @@ import com.example.ui.TamanKataViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Security
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentDashboardScreen(
     viewModel: TamanKataViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToPrivacyInfo: () -> Unit
 ) {
     val history by viewModel.sessionHistory.collectAsState()
 
@@ -35,6 +39,11 @@ fun ParentDashboardScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToPrivacyInfo) {
+                        Icon(Icons.Default.Security, contentDescription = "Lihat Info Privasi")
                     }
                 }
             )
@@ -48,6 +57,46 @@ fun ParentDashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                // Info Privasi quick banner/button
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Privasi & Perlindungan Data Anak",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                        }
+                        TextButton(
+                            onClick = onNavigateToPrivacyInfo,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("Lihat Info", style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+
             item {
                 val totalSecs = history.sumOf { it.durationSeconds }
                 val currentHours = totalSecs / 3600.0

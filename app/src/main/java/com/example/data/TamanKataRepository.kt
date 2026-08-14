@@ -2,9 +2,23 @@ package com.example.data
 
 import kotlinx.coroutines.flow.Flow
 
-class TamanKataRepository(private val dao: TamanKataDao) {
+class TamanKataRepository(
+    private val dao: TamanKataDao,
+    private val consentPreferences: ConsentPreferences? = null
+) {
     val allStages: Flow<List<Stage>> = dao.getAllStages()
     val sessionHistory: Flow<List<SessionHistory>> = dao.getSessionHistory()
+
+    val hasConsented: Flow<Boolean> = consentPreferences?.hasConsented ?: kotlinx.coroutines.flow.flowOf(true)
+    val consentTimestamp: Flow<Long> = consentPreferences?.consentTimestamp ?: kotlinx.coroutines.flow.flowOf(0L)
+
+    suspend fun saveConsent(consented: Boolean, timestamp: Long = System.currentTimeMillis()) {
+        consentPreferences?.saveConsent(consented, timestamp)
+    }
+
+    suspend fun revokeConsent() {
+        consentPreferences?.revokeConsent()
+    }
 
     fun getItemsForStage(stageId: Int): Flow<List<LearningItem>> {
         return dao.getItemsForStage(stageId)
