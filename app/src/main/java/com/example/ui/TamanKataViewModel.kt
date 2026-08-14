@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
 import com.example.data.LearningItem
 import com.example.data.SessionHistory
+import com.example.data.SessionCheckpoint
 import com.example.data.Stage
 import com.example.data.TamanKataRepository
 import com.example.network.Content
@@ -45,6 +46,7 @@ sealed class SessionState {
     ) : SessionState()
     data class Comprehension(val item: LearningItem, val questions: List<QuestionData>, val currentQuestionIndex: Int, val correctAnswers: Int) : SessionState()
     data class Graduation(val studentName: String, val totalHours: Double) : SessionState()
+    data class ResumePrompt(val checkpoint: SessionCheckpoint) : SessionState()
     data class Error(val item: LearningItem, val message: String, val debugMessage: String? = null) : SessionState()
     object Finished : SessionState()
 }
@@ -159,6 +161,21 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     }
 
     fun startSession(stageId: Int) {
+        viewModelScope.launch {
+            val checkpoint = repository.getSessionCheckpoint()
+            val sixHoursMs = 6 * 60 * 60 * 1000L
+            if (checkpoint != null && checkpoint.stageId == stageId && (System.currentTimeMillis() - checkpoint.lastUpdateTimestamp < sixHoursMs)) {
+                _sessionState.value = SessionState.ResumePrompt(checkpoint)
+            } else {
+                if (checkpoint != null) {
+                    repository.deleteSessionCheckpoint()
+                }
+                startNewSessionOverridingCheckpoint(stageId)
+            }
+        }
+    }
+
+    fun startNewSessionOverridingCheckpoint(stageId: Int) {
         currentStageId = stageId
         totalScoreSum = 0
         totalFluencySum = 0
@@ -189,13 +206,43 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             } else testingItems
             
             // Sesi dibatasi maksimal 10 item (prinsip micro-session ramah anak).
-            // Dengan 50 item di Stage 1, sistem mengambil 10 item per sesi sehingga terdapat variasi antar sesi.
-            // TODO: Pada iterasi lanjutan, urutan pengambilan item untuk Stage 1 dapat disempurnakan dengan 
-            // sequencing berbasis mastery per keluarga huruf (misal: menyelesaikan seluruh vokal dari satu konsonan
-            // seperti ba, bi, bu, be, bo sebelum beralih ke ma, mi, mu, me, mo) alih-alih mengambil urutan antrean langsung.
             allSessionItems = finalItems.take(10) // Take up to 10 for a session
             sessionQueue = LinkedList(allSessionItems)
 
+            saveCurrentCheckpoint()
+
+            nextItem()
+        }
+    }
+
+    fun resumeSession(checkpoint: SessionCheckpoint) {
+        currentStageId = checkpoint.stageId
+        totalScoreSum = checkpoint.totalScoreSum
+        totalFluencySum = checkpoint.totalFluencySum
+        totalComprehensionSum = checkpoint.totalComprehensionSum
+        totalWcpmSum = checkpoint.totalWcpmSum
+        totalWordsRead = checkpoint.totalWordsRead
+        independentItemsCount = checkpoint.independentItemsCount
+        itemsEvaluatedCount = checkpoint.itemsEvaluatedCount
+        sessionStartTime = checkpoint.sessionStartTime
+        currentItemFailCount = 0
+        currentItemTtsCount = 0
+        isTimeLimitEnded = false
+
+        viewModelScope.launch {
+            val allItems = repository.getItemsForStage(checkpoint.stageId).stateIn(viewModelScope).value
+            
+            // Reconstruct remaining items from IDs
+            val remainingIds = try {
+                org.json.JSONArray(checkpoint.remainingItemIds).let { arr ->
+                    List(arr.length()) { arr.getInt(it) }
+                }
+            } catch (e: Exception) { emptyList() }
+            
+            val remainingItems = remainingIds.mapNotNull { id -> allItems.find { it.id == id } }
+            
+            allSessionItems = remainingItems // In resume, allSessionItems only tracks remaining so progress bar is relative
+            sessionQueue = LinkedList(remainingItems)
             nextItem()
         }
     }
@@ -302,6 +349,37 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         }
     }
 
+    private fun saveCurrentCheckpoint() {
+        viewModelScope.launch {
+            try {
+                val remainingIdsJson = org.json.JSONArray(sessionQueue.map { it.id }).toString()
+                
+                // Construct completed items as allSessionItems minus sessionQueue
+                val remainingIdsSet = sessionQueue.map { it.id }.toSet()
+                val completedIds = allSessionItems.map { it.id }.filter { it !in remainingIdsSet }
+                val completedIdsJson = org.json.JSONArray(completedIds).toString()
+                
+                val checkpoint = SessionCheckpoint(
+                    stageId = currentStageId,
+                    completedItemIds = completedIdsJson,
+                    remainingItemIds = remainingIdsJson,
+                    totalScoreSum = totalScoreSum,
+                    totalFluencySum = totalFluencySum,
+                    totalComprehensionSum = totalComprehensionSum,
+                    totalWcpmSum = totalWcpmSum,
+                    totalWordsRead = totalWordsRead,
+                    independentItemsCount = independentItemsCount,
+                    itemsEvaluatedCount = itemsEvaluatedCount,
+                    sessionStartTime = sessionStartTime,
+                    lastUpdateTimestamp = System.currentTimeMillis()
+                )
+                repository.saveSessionCheckpoint(checkpoint)
+            } catch(e: Exception) {
+                // Ignore
+            }
+        }
+    }
+
     private suspend fun handleEvaluationResult(item: LearningItem, score: Int, fluency: Int, isCorrect: Boolean, intonationMatched: Boolean, wcpm: Int, isFromParent: Boolean = false) {
         totalScoreSum += score
         totalFluencySum += fluency
@@ -357,6 +435,8 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                 _sessionState.value = SessionState.Feedback(item, isCorrect = false, showParentHelp = false)
             }
         }
+        
+        saveCurrentCheckpoint()
     }
 
     fun answerComprehension(selectedIndex: Int) {
@@ -375,6 +455,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                 // Finished comprehension for this item
                 val totalQ = currentState.questions.size
                 totalComprehensionSum += (newCorrectCount * 100) / totalQ
+                saveCurrentCheckpoint()
                 _sessionState.value = SessionState.Feedback(currentState.item, isCorrect = true)
             }
         }
@@ -397,6 +478,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     }
 
     fun finishSession(onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean, isTimeLimit: Boolean) -> Unit) {
+        viewModelScope.launch { repository.deleteSessionCheckpoint() }
         val duration = ((System.currentTimeMillis() - sessionStartTime) / 1000).toInt()
         val avgScore = if (itemsEvaluatedCount > 0) totalScoreSum / itemsEvaluatedCount else 0
         val avgFluency = if (itemsEvaluatedCount > 0) totalFluencySum / itemsEvaluatedCount else 0

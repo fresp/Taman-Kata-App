@@ -22,6 +22,10 @@ class StageDataInitializationTest {
         override fun getAllStories(): Flow<List<com.example.data.Story>> = flowOf(stories)
         override suspend fun getStoryCount(): Int = stories.size
         override suspend fun insertStories(stories: List<com.example.data.Story>) { this.stories.addAll(stories) }
+        var checkpoint: com.example.data.SessionCheckpoint? = null
+        override suspend fun getSessionCheckpoint(): com.example.data.SessionCheckpoint? = checkpoint
+        override suspend fun insertOrUpdateSessionCheckpoint(cp: com.example.data.SessionCheckpoint) { checkpoint = cp }
+        override suspend fun deleteSessionCheckpoint() { checkpoint = null }
 
         override fun getAllStages(): Flow<List<Stage>> = flowOf(stages)
         override fun getItemsForStage(stageId: Int): Flow<List<LearningItem>> = flowOf(items.filter { it.stageId == stageId })

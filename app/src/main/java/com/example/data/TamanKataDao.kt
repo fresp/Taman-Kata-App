@@ -50,4 +50,13 @@ interface TamanKataDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertStories(stories: List<Story>)
+
+    @Query("SELECT * FROM session_checkpoint WHERE id = 1")
+    suspend fun getSessionCheckpoint(): SessionCheckpoint?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateSessionCheckpoint(checkpoint: SessionCheckpoint)
+
+    @Query("DELETE FROM session_checkpoint WHERE id = 1")
+    suspend fun deleteSessionCheckpoint()
 }

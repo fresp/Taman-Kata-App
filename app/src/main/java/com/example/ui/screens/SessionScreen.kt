@@ -217,6 +217,49 @@ fun SessionScreen(
             is SessionState.Loading -> {
                 CircularProgressIndicator(color = PrimaryGreen)
             }
+            is SessionState.ResumePrompt -> {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val remainingCount = try {
+                        org.json.JSONArray(state.checkpoint.remainingItemIds).length()
+                    } catch (e: Exception) { 0 }
+                    val completedCount = try {
+                        org.json.JSONArray(state.checkpoint.completedItemIds).length()
+                    } catch (e: Exception) { 0 }
+                    val total = remainingCount + completedCount
+                    
+                    Text(
+                        text = "Sesi Tertunda",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Sepertinya ada sesi sebelumnya yang belum selesai (progres $completedCount dari $total item). Lanjutkan dari situ, atau mulai sesi baru?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Button(
+                            onClick = { viewModel.startNewSessionOverridingCheckpoint(stageId) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
+                        ) {
+                            Text("Mulai Baru")
+                        }
+                        Button(
+                            onClick = { viewModel.resumeSession(state.checkpoint) },
+                            colors = ButtonDefaults.buttonColors(containerColor = ActionOrange)
+                        ) {
+                            Text("Lanjutkan")
+                        }
+                    }
+                }
+            }
             is SessionState.Playing -> {
                 PlayingView(
                     item = state.item,

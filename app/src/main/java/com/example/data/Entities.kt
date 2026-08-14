@@ -37,6 +37,23 @@ data class SessionHistory(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "session_checkpoint")
+data class SessionCheckpoint(
+    @PrimaryKey val id: Int = 1,
+    val stageId: Int,
+    val completedItemIds: String, // JSON array of Int
+    val remainingItemIds: String, // JSON array of Int
+    val totalScoreSum: Int,
+    val totalFluencySum: Int,
+    val totalComprehensionSum: Int,
+    val totalWcpmSum: Int,
+    val totalWordsRead: Int,
+    val independentItemsCount: Int,
+    val itemsEvaluatedCount: Int,
+    val sessionStartTime: Long,
+    val lastUpdateTimestamp: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "stories")
 data class Story(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,

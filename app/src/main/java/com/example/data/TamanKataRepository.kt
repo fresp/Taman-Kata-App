@@ -30,7 +30,11 @@ class TamanKataRepository(
     suspend fun updateItem(item: LearningItem) = dao.updateItem(item)
     suspend fun saveSession(history: SessionHistory) = dao.insertSessionHistory(history)
     suspend fun getWeakItems(limit: Int) = dao.getWeakItems(limit)
-    
+
+    suspend fun getSessionCheckpoint(): SessionCheckpoint? = dao.getSessionCheckpoint()
+    suspend fun saveSessionCheckpoint(checkpoint: SessionCheckpoint) = dao.insertOrUpdateSessionCheckpoint(checkpoint)
+    suspend fun deleteSessionCheckpoint() = dao.deleteSessionCheckpoint()
+
     suspend fun initializeDummyData() {
         if (dao.getStageCount() == 0) {
             val stages = listOf(
