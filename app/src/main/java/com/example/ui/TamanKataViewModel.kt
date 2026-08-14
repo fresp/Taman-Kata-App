@@ -59,7 +59,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     val consentTimestamp: StateFlow<Long> = repository.consentTimestamp
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = 0L
         )
 

@@ -46,11 +46,25 @@ class ConsentFlowTest {
         override suspend fun getStageCount(): Int = stages.size
     }
 
-    class FakeConsentRepo(
-        private val dao: TamanKataDao
-    ) {
-        val hasConsentedFlow = MutableStateFlow(false)
-        val timestampFlow = MutableStateFlow(0L)
+    class FakeConsentPreferences(
+        initialConsented: Boolean = true,
+        initialTimestamp: Long = 123456789L
+    ) : ConsentPreferences() {
+        val consentedFlow = MutableStateFlow(initialConsented)
+        val tsFlow = MutableStateFlow(initialTimestamp)
+
+        override val hasConsented: Flow<Boolean> = consentedFlow
+        override val consentTimestamp: Flow<Long> = tsFlow
+
+        override suspend fun saveConsent(consented: Boolean, timestamp: Long) {
+            consentedFlow.value = consented
+            tsFlow.value = if (consented) timestamp else 0L
+        }
+
+        override suspend fun revokeConsent() {
+            consentedFlow.value = false
+            tsFlow.value = 0L
+        }
     }
 
     @Before
@@ -64,14 +78,42 @@ class ConsentFlowTest {
     }
 
     @Test
-    fun testInitialConsentIsFalseAndCanBeGrantedAndRevoked() = runTest {
+    fun testFailClosedWhenConsentPreferencesIsNull() = runTest {
         val fakeDao = FakeDao()
-        val repo = TamanKataRepository(fakeDao)
+        // Skenario: consentPreferences bernilai null (misal karena salah wiring/hilang konfigurasi)
+        val repo = TamanKataRepository(fakeDao, consentPreferences = null)
         val viewModel = TamanKataViewModel(repo)
 
         advanceUntilIdle()
 
-        // When no preferences provided, default fallback is true
+        // SENGAT DIBUAT FAIL-CLOSED DEMI KEAMANAN:
+        // Jika consentPreferences null, hasConsented HARUS bernilai false (bukan true)
+        // agar aplikasi tidak diam-diam mem-bypass gate persetujuan privasi orang tua.
+        assertEquals(false, viewModel.hasConsented.value)
+    }
+
+    @Test
+    fun testConsentProvidedAndAlreadyGrantedReturnsTrue() = runTest {
+        val fakeDao = FakeDao()
+        // Skenario positif: consentPreferences disediakan dan sudah pernah menyimpan consented = true
+        val fakePrefs = FakeConsentPreferences(initialConsented = true, initialTimestamp = 1700000000000L)
+        val repo = TamanKataRepository(fakeDao, consentPreferences = fakePrefs)
+        val viewModel = TamanKataViewModel(repo)
+
+        advanceUntilIdle()
+
+        // Memastikan hasConsented mengembalikan true sesuai data yang tersimpan
+        assertEquals(true, viewModel.hasConsented.value)
+        assertEquals(1700000000000L, viewModel.consentTimestamp.value)
+
+        // Verifikasi alur cabut persetujuan (revoke)
+        viewModel.revokeConsent()
+        advanceUntilIdle()
+        assertEquals(false, viewModel.hasConsented.value)
+
+        // Verifikasi alur pemberian persetujuan ulang (setConsent)
+        viewModel.setConsent(true)
+        advanceUntilIdle()
         assertEquals(true, viewModel.hasConsented.value)
     }
 }

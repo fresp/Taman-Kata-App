@@ -9,7 +9,7 @@ class TamanKataRepository(
     val allStages: Flow<List<Stage>> = dao.getAllStages()
     val sessionHistory: Flow<List<SessionHistory>> = dao.getSessionHistory()
 
-    val hasConsented: Flow<Boolean> = consentPreferences?.hasConsented ?: kotlinx.coroutines.flow.flowOf(true)
+    val hasConsented: Flow<Boolean> = consentPreferences?.hasConsented ?: kotlinx.coroutines.flow.flowOf(false)
     val consentTimestamp: Flow<Long> = consentPreferences?.consentTimestamp ?: kotlinx.coroutines.flow.flowOf(0L)
 
     suspend fun saveConsent(consented: Boolean, timestamp: Long = System.currentTimeMillis()) {
