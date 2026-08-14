@@ -46,7 +46,6 @@ fun TamanKataNavHost(
                 stageId = stageId,
                 viewModel = viewModel,
                 onSessionFinished = { duration, itemsCount, avgScore, passed ->
-                    viewModel.saveSession(duration, itemsCount, avgScore, stageId, passed)
                     navController.navigate("result/$avgScore/$passed") {
                         popUpTo("session/{stageId}") { inclusive = true }
                     }

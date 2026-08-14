@@ -1,29 +1,47 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.example.ui.SessionState
 import com.example.ui.TamanKataViewModel
 import com.example.ui.components.KikiExpression
 import com.example.ui.components.KikiMascot
-
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.Color
-import com.example.ui.theme.PrimaryGreen
-import com.example.ui.theme.WarmOrange
-import com.example.ui.theme.WarmOrangeShadow
 import com.example.ui.theme.ActionOrange
+import com.example.ui.theme.PrimaryGreen
 import com.example.ui.theme.TextDark
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.BorderStroke
+import com.example.ui.theme.WarmOrange
+import com.example.util.AudioRecorderHelper
+import com.example.util.TTSHelper
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SessionScreen(
@@ -31,29 +49,44 @@ fun SessionScreen(
     viewModel: TamanKataViewModel,
     onSessionFinished: (duration: Int, itemsCount: Int, avgScore: Int, passed: Boolean) -> Unit
 ) {
-    val items by viewModel.getItemsForStage(stageId).collectAsState()
-    var currentIndex by remember { mutableStateOf(0) }
-    var scoreSum by remember { mutableStateOf(0) }
-    val startTime = remember { System.currentTimeMillis() }
+    val context = LocalContext.current
+    val sessionState by viewModel.sessionState.collectAsState()
+    
+    val ttsHelper = remember { TTSHelper(context) }
+    val audioRecorder = remember { AudioRecorderHelper(context) }
+    val coroutineScope = rememberCoroutineScope()
 
-    if (items.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = PrimaryGreen)
-        }
-        return
+    var hasMicPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
     }
 
-    if (currentIndex >= items.size) {
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasMicPermission = isGranted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasMicPermission) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+        viewModel.startSession(stageId)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            ttsHelper.shutdown()
+        }
+    }
+
+    if (sessionState is SessionState.Finished) {
         LaunchedEffect(Unit) {
-            val duration = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-            val avgScore = if (items.isNotEmpty()) scoreSum / items.size else 0
-            val passed = avgScore >= 80
-            onSessionFinished(duration, items.size, avgScore, passed)
+            viewModel.finishSession(onSessionFinished)
         }
         return
     }
-
-    val currentItem = items[currentIndex]
 
     Column(
         modifier = Modifier
@@ -68,25 +101,75 @@ fun SessionScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            KikiMascot(expression = KikiExpression.CHEERING, modifier = Modifier.size(80.dp))
-            Surface(
-                color = Color.White,
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(2.dp, PrimaryGreen),
-                modifier = Modifier.padding(8.dp)
-            ) {
-                Text(
-                    text = "${currentIndex + 1} / ${items.size}",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
-                    color = PrimaryGreen,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+            val expression = when (sessionState) {
+                is SessionState.Feedback -> if ((sessionState as SessionState.Feedback).isCorrect) KikiExpression.HAPPY else KikiExpression.CHEERING
+                else -> KikiExpression.NEUTRAL
             }
+            KikiMascot(expression = expression, modifier = Modifier.size(80.dp))
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Skeleton "Item Card"
+        // Main Content based on state
+        when (val state = sessionState) {
+            is SessionState.Loading -> {
+                CircularProgressIndicator(color = PrimaryGreen)
+            }
+            is SessionState.Playing -> {
+                PlayingView(
+                    text = state.item.text,
+                    isRecording = state.isRecording,
+                    isEvaluating = state.isEvaluating,
+                    onPlaySound = { ttsHelper.speak(state.item.text) },
+                    onToggleRecord = {
+                        if (hasMicPermission) {
+                            if (state.isRecording) {
+                                val base64Audio = audioRecorder.stopRecording()
+                                if (base64Audio != null) {
+                                    viewModel.evaluateAudio(base64Audio)
+                                } else {
+                                    viewModel.setRecording(false) // Error recording
+                                }
+                            } else {
+                                audioRecorder.startRecording()
+                                viewModel.setRecording(true)
+                            }
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+                )
+            }
+            is SessionState.Feedback -> {
+                FeedbackView(
+                    isCorrect = state.isCorrect,
+                    showParentHelp = state.showParentHelp,
+                    onNext = { viewModel.continueToNext() },
+                    onParentDecide = { isCorrect -> viewModel.manualParentEvaluation(isCorrect) }
+                )
+            }
+            else -> {}
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun PlayingView(
+    text: String,
+    isRecording: Boolean,
+    isEvaluating: Boolean,
+    onPlaySound: () -> Unit,
+    onToggleRecord: () -> Unit
+) {
+    // Auto-play TTS on first composition
+    LaunchedEffect(text) {
+        delay(500)
+        onPlaySound()
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
             modifier = Modifier
                 .size(300.dp)
@@ -97,48 +180,104 @@ fun SessionScreen(
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Text(
-                    text = currentItem.text,
+                    text = text,
                     style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp, fontWeight = FontWeight.Black),
                     color = TextDark,
                     textAlign = TextAlign.Center
                 )
+                
+                // Sound button
+                IconButton(
+                    onClick = onPlaySound,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                ) {
+                    Icon(Icons.Default.VolumeUp, contentDescription = "Dengarkan", tint = WarmOrange, modifier = Modifier.size(48.dp))
+                }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(64.dp))
 
-        // Actions
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            Button(
-                onClick = {
-                    viewModel.updateItemProgress(currentItem, 50)
-                    scoreSum += 50
-                    currentIndex++
-                },
-                modifier = Modifier.size(120.dp, 80.dp).shadow(8.dp, RoundedCornerShape(24.dp)),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ActionOrange),
-                border = BorderStroke(4.dp, Color.White)
+        if (isEvaluating) {
+            CircularProgressIndicator(color = PrimaryGreen)
+            Text("Tunggu ya...", color = TextDark, modifier = Modifier.padding(top = 16.dp))
+        } else {
+            Surface(
+                shape = CircleShape,
+                color = if (isRecording) ActionOrange else PrimaryGreen,
+                border = BorderStroke(4.dp, Color.White),
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clickable { onToggleRecord() }
             ) {
-                Text("Ulang", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black))
+                Icon(
+                    imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                    contentDescription = if (isRecording) "Berhenti" else "Rekam",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxSize()
+                )
             }
-            Button(
-                onClick = {
-                    viewModel.updateItemProgress(currentItem, 100)
-                    scoreSum += 100
-                    currentIndex++
-                },
-                modifier = Modifier.size(160.dp, 80.dp).shadow(8.dp, RoundedCornerShape(24.dp)),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                border = BorderStroke(4.dp, Color.White)
-            ) {
-                Text("Bisa!", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black))
-            }
+            Text(
+                text = if (isRecording) "Tekan untuk Berhenti" else "Tekan untuk Bicara",
+                color = TextDark,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
-        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun FeedbackView(
+    isCorrect: Boolean,
+    showParentHelp: Boolean,
+    onNext: () -> Unit,
+    onParentDecide: (Boolean) -> Unit
+) {
+    LaunchedEffect(isCorrect, showParentHelp) {
+        if (!showParentHelp) {
+            delay(2000)
+            onNext()
+        }
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (showParentHelp) {
+            Surface(
+                modifier = Modifier.padding(32.dp).shadow(8.dp, RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                border = BorderStroke(4.dp, ActionOrange)
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Bantuan Ayah/Bunda", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black), color = ActionOrange)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Apakah ucapan anak sudah benar?", textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Button(onClick = { onParentDecide(false) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) {
+                            Text("Coba Lagi")
+                        }
+                        Button(onClick = { onParentDecide(true) }, colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)) {
+                            Text("Benar!")
+                        }
+                    }
+                }
+            }
+        } else {
+            // Visual feedback
+            val color = if (isCorrect) PrimaryGreen else WarmOrange
+            val message = if (isCorrect) "Bagus Sekali!" else "Ayo Coba Lagi!"
+            
+            Text(
+                text = message,
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 48.sp, fontWeight = FontWeight.Black),
+                color = color,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
