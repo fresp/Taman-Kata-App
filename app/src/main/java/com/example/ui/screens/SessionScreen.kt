@@ -6,8 +6,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,6 +42,7 @@ import com.example.ui.theme.PrimaryGreen
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.WarmOrange
 import com.example.util.AudioRecorderHelper
+import com.example.util.NetworkUtils
 import com.example.util.TTSHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -58,10 +61,12 @@ fun SessionScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var isSoftLimit by remember { mutableStateOf(false) }
+    var isOnline by remember { mutableStateOf(NetworkUtils.isOnline(context)) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            delay(3000L)
+            delay(2000L)
+            isOnline = NetworkUtils.isOnline(context)
             isSoftLimit = viewModel.isSoftLimitReached()
         }
     }
@@ -175,6 +180,35 @@ fun SessionScreen(
             }
         }
 
+        AnimatedVisibility(
+            visible = !isOnline,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFFFF3E0),
+                border = BorderStroke(2.dp, ActionOrange.copy(alpha = 0.6f)),
+                shadowElevation = 2.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("📡", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Sedang offline — sesi ini akan dibantu Ayah/Bunda untuk menilai ya",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextDark
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.weight(1f))
 
         // Main Content based on state
@@ -202,7 +236,8 @@ fun SessionScreen(
                                 } else {
                                     val base64Audio = audioRecorder.stopRecording()
                                     if (base64Audio != null) {
-                                        viewModel.evaluateAudio(base64Audio)
+                                        val onlineStatus = NetworkUtils.isOnline(context)
+                                        viewModel.evaluateAudio(base64Audio, isOnline = onlineStatus)
                                     } else {
                                         viewModel.setRecording(false) // Error recording
                                     }
@@ -421,9 +456,22 @@ fun FeedbackView(
                 border = BorderStroke(4.dp, ActionOrange)
             ) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Bantuan Ayah/Bunda", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black), color = ActionOrange)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Apakah ucapan anak sudah benar?", textAlign = TextAlign.Center)
+                    val isOfflineHelp = state.parentHelpReason == "OFFLINE"
+                    Text(
+                        text = if (isOfflineHelp) "Bantuan Ayah/Bunda (Offline)" else "Bantuan Ayah/Bunda",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                        color = ActionOrange
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = if (isOfflineHelp) {
+                            "Internet sedang gangguan, yuk minta Ayah/Bunda bantu dengar ya!"
+                        } else {
+                            "Apakah ucapan anak sudah benar?"
+                        },
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        textAlign = TextAlign.Center
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     if (lastRecordingPath != null) {

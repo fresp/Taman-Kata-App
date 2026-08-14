@@ -31,7 +31,14 @@ data class GeminiEvalResult(val score: Int, val fluency: Int, val isCorrect: Boo
 sealed class SessionState {
     object Loading : SessionState()
     data class Playing(val item: LearningItem, val isRecording: Boolean = false, val isEvaluating: Boolean = false) : SessionState()
-    data class Feedback(val item: LearningItem, val isCorrect: Boolean, val showParentHelp: Boolean = false, val fluency: Int = 0, val intonationMatched: Boolean = false) : SessionState()
+    data class Feedback(
+        val item: LearningItem,
+        val isCorrect: Boolean,
+        val showParentHelp: Boolean = false,
+        val fluency: Int = 0,
+        val intonationMatched: Boolean = false,
+        val parentHelpReason: String = "REPEATED_FAIL"
+    ) : SessionState()
     data class Comprehension(val item: LearningItem, val questions: List<QuestionData>, val currentQuestionIndex: Int, val correctAnswers: Int) : SessionState()
     data class Graduation(val studentName: String, val totalHours: Double) : SessionState()
     data class Error(val item: LearningItem, val message: String) : SessionState()
@@ -169,7 +176,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         return System.currentTimeMillis() - currentRecordingStartTime
     }
 
-    fun evaluateAudio(audioBase64: String) {
+    fun evaluateAudio(audioBase64: String, isOnline: Boolean = true) {
         val currentState = _sessionState.value
         if (currentState !is SessionState.Playing) return
 
@@ -177,6 +184,17 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         val durationMs = System.currentTimeMillis() - currentRecordingStartTime
         val durationSecs = (durationMs / 1000f).coerceAtLeast(1f)
         _sessionState.value = currentState.copy(isRecording = false, isEvaluating = true)
+
+        if (!isOnline) {
+            // Offline fallback: Do NOT call Gemini API at all
+            _sessionState.value = SessionState.Feedback(
+                item = currentItem,
+                isCorrect = false,
+                showParentHelp = true,
+                parentHelpReason = "OFFLINE"
+            )
+            return
+        }
 
         viewModelScope.launch {
             val apiKey = com.example.BuildConfig.GEMINI_API_KEY
@@ -209,9 +227,10 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         if (currentState !is SessionState.Feedback) return
         val currentItem = currentState.item
         
+        currentItemFailCount = 0
         viewModelScope.launch {
             // Treat as 100 if correct manually, else 0
-            handleEvaluationResult(currentItem, if (isCorrect) 100 else 0, 100, isCorrect, true, 20, true)
+            handleEvaluationResult(currentItem, if (isCorrect) 100 else 0, 100, isCorrect, true, 20, isFromParent = true)
         }
     }
 
@@ -261,7 +280,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             currentItemFailCount++
             if (currentItemFailCount >= 3 && !isFromParent) {
                 // Ask parent for help
-                _sessionState.value = SessionState.Feedback(item, isCorrect = false, showParentHelp = true)
+                _sessionState.value = SessionState.Feedback(item, isCorrect = false, showParentHelp = true, parentHelpReason = "REPEATED_FAIL")
             } else {
                 // Spaced repetition: add back to queue, e.g., 2 items later
                 val reinsertIndex = minOf(2, sessionQueue.size)
