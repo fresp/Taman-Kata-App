@@ -19,6 +19,7 @@ data class LearningItem(
     val status: String = "NOT_TRIED", // NOT_TRIED, IN_PROGRESS, MASTERED
     val lastAccuracyScore: Int = 0, // 0-100
     val highestFluencyScore: Int = 0, // 0-100
+    val extraData: String = "", // Used for comprehension questions JSON
     val attemptCount: Int = 0,
     val lastTrainedTimestamp: Long = 0L
 )
@@ -31,5 +32,7 @@ data class SessionHistory(
     val averageScore: Int,
     val averageFluency: Int = 0,
     val independencePercentage: Int = 0,
+    val averageComprehension: Int = 0,
+    val averageWcpm: Int = 0,
     val timestamp: Long = System.currentTimeMillis()
 )

@@ -26,12 +26,18 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.LinkedList
 
+data class GeminiEvalResult(val score: Int, val fluency: Int, val isCorrect: Boolean, val intonationMatched: Boolean)
+
 sealed class SessionState {
     object Loading : SessionState()
     data class Playing(val item: LearningItem, val isRecording: Boolean = false, val isEvaluating: Boolean = false) : SessionState()
-    data class Feedback(val item: LearningItem, val isCorrect: Boolean, val showParentHelp: Boolean = false) : SessionState()
+    data class Feedback(val item: LearningItem, val isCorrect: Boolean, val showParentHelp: Boolean = false, val fluency: Int = 0, val intonationMatched: Boolean = false) : SessionState()
+    data class Comprehension(val item: LearningItem, val questions: List<QuestionData>, val currentQuestionIndex: Int, val correctAnswers: Int) : SessionState()
+    data class Graduation(val studentName: String, val totalHours: Double) : SessionState()
     object Finished : SessionState()
 }
+
+data class QuestionData(val question: String, val options: List<String>, val correctIndex: Int)
 
 class TamanKataViewModel(private val repository: TamanKataRepository) : ViewModel() {
 
@@ -56,6 +62,9 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     private var allSessionItems = listOf<LearningItem>()
     private var totalScoreSum = 0
     private var totalFluencySum = 0
+    private var totalComprehensionSum = 0
+    private var totalWcpmSum = 0
+    private var totalWordsRead = 0
     private var independentItemsCount = 0
     private var itemsEvaluatedCount = 0
     private var currentStageId = 0
@@ -75,6 +84,9 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         currentStageId = stageId
         totalScoreSum = 0
         totalFluencySum = 0
+        totalComprehensionSum = 0
+        totalWcpmSum = 0
+        totalWordsRead = 0
         independentItemsCount = 0
         itemsEvaluatedCount = 0
         sessionStartTime = System.currentTimeMillis()
@@ -82,14 +94,22 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         currentItemTtsCount = 0
 
         viewModelScope.launch {
-            // For testing, just take dummy syllables
-            val items = repository.getItemsForStage(stageId).stateIn(viewModelScope).value
-            val testingItems = if (items.isNotEmpty()) items else {
-                listOf("a", "i", "u", "ba", "bi", "bu", "ma", "mi", "mu", "ka").mapIndexed { index, text ->
-                    LearningItem(id = index, stageId = stageId, text = text)
+            val testingItems = if (stageId == 7) {
+                repository.getWeakItems(10)
+            } else {
+                val items = repository.getItemsForStage(stageId).stateIn(viewModelScope).value
+                if (items.isNotEmpty()) items else {
+                    listOf("a", "i", "u", "ba", "bi", "bu", "ma", "mi", "mu", "ka").mapIndexed { index, text ->
+                        LearningItem(id = index, stageId = stageId, text = text)
+                    }
                 }
             }
-            allSessionItems = testingItems.take(10) // Take up to 10 for a session
+            // Fallback for Stage 8 if no weak items
+            val finalItems = if (testingItems.isEmpty() && stageId == 7) {
+                listOf(LearningItem(id = 99, stageId = 7, text = "Aku anak pintar."))
+            } else testingItems
+            
+            allSessionItems = finalItems.take(10) // Take up to 10 for a session
             sessionQueue = LinkedList(allSessionItems)
 
             nextItem()
@@ -107,6 +127,8 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         }
     }
 
+    private var currentRecordingStartTime = 0L
+
     fun onTtsPlayed(isReplay: Boolean) {
         if (isReplay) {
             currentItemTtsCount++
@@ -116,6 +138,9 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     fun setRecording(isRecording: Boolean) {
         val currentState = _sessionState.value
         if (currentState is SessionState.Playing) {
+            if (isRecording) {
+                currentRecordingStartTime = System.currentTimeMillis()
+            }
             _sessionState.value = currentState.copy(isRecording = isRecording)
         }
     }
@@ -125,15 +150,21 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         if (currentState !is SessionState.Playing) return
 
         val currentItem = currentState.item
+        val durationMs = System.currentTimeMillis() - currentRecordingStartTime
+        val durationSecs = (durationMs / 1000f).coerceAtLeast(1f)
         _sessionState.value = currentState.copy(isRecording = false, isEvaluating = true)
 
         viewModelScope.launch {
             val result = evaluateWithGemini(currentItem.text, audioBase64)
-            val score = result.first
-            val fluency = result.second
-            val isCorrect = result.third
+            val score = result.score
+            val fluency = result.fluency
+            val isCorrect = result.isCorrect
+            val intonationMatched = result.intonationMatched
 
-            handleEvaluationResult(currentItem, score, fluency, isCorrect)
+            val wordCount = currentItem.text.split(Regex("\\s+")).size
+            val wcpm = ((wordCount * (score / 100f)) / (durationSecs / 60f)).toInt()
+
+            handleEvaluationResult(currentItem, score, fluency, isCorrect, intonationMatched, wcpm)
         }
     }
     
@@ -144,13 +175,14 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         
         viewModelScope.launch {
             // Treat as 100 if correct manually, else 0
-            handleEvaluationResult(currentItem, if (isCorrect) 100 else 0, 100, isCorrect, true)
+            handleEvaluationResult(currentItem, if (isCorrect) 100 else 0, 100, isCorrect, true, 20, true)
         }
     }
 
-    private suspend fun handleEvaluationResult(item: LearningItem, score: Int, fluency: Int, isCorrect: Boolean, isFromParent: Boolean = false) {
+    private suspend fun handleEvaluationResult(item: LearningItem, score: Int, fluency: Int, isCorrect: Boolean, intonationMatched: Boolean, wcpm: Int, isFromParent: Boolean = false) {
         totalScoreSum += score
         totalFluencySum += fluency
+        totalWcpmSum += wcpm
         if (currentItemTtsCount == 0) {
             independentItemsCount++
         }
@@ -167,7 +199,28 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         ))
 
         if (isCorrect) {
-            _sessionState.value = SessionState.Feedback(item, isCorrect = true, showParentHelp = false)
+            if (item.extraData.isNotEmpty() && currentStageId == 6) {
+                // Parse questions and move to comprehension state
+                try {
+                    val jsonObj = JSONObject(item.extraData)
+                    val questions = mutableListOf<QuestionData>()
+                    if (jsonObj.has("q1")) {
+                        val opts = jsonObj.getJSONArray("o1").let { arr -> List(arr.length()) { arr.getString(it) } }
+                        questions.add(QuestionData(jsonObj.getString("q1"), opts, jsonObj.getInt("a1")))
+                    }
+                    if (jsonObj.has("q2")) {
+                        val opts = jsonObj.getJSONArray("o2").let { arr -> List(arr.length()) { arr.getString(it) } }
+                        questions.add(QuestionData(jsonObj.getString("q2"), opts, jsonObj.getInt("a2")))
+                    }
+                    if (questions.isNotEmpty()) {
+                        _sessionState.value = SessionState.Comprehension(item, questions, 0, 0)
+                        return
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            _sessionState.value = SessionState.Feedback(item, isCorrect = true, showParentHelp = false, fluency = fluency, intonationMatched = intonationMatched)
         } else {
             currentItemFailCount++
             if (currentItemFailCount >= 3 && !isFromParent) {
@@ -183,6 +236,27 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         }
     }
 
+    fun answerComprehension(selectedIndex: Int) {
+        val currentState = _sessionState.value
+        if (currentState is SessionState.Comprehension) {
+            val q = currentState.questions[currentState.currentQuestionIndex]
+            val isCorrect = selectedIndex == q.correctIndex
+            val newCorrectCount = currentState.correctAnswers + if (isCorrect) 1 else 0
+            
+            if (currentState.currentQuestionIndex < currentState.questions.size - 1) {
+                _sessionState.value = currentState.copy(
+                    currentQuestionIndex = currentState.currentQuestionIndex + 1,
+                    correctAnswers = newCorrectCount
+                )
+            } else {
+                // Finished comprehension for this item
+                val totalQ = currentState.questions.size
+                totalComprehensionSum += (newCorrectCount * 100) / totalQ
+                _sessionState.value = SessionState.Feedback(currentState.item, isCorrect = true)
+            }
+        }
+    }
+
     fun continueToNext() {
         nextItem()
     }
@@ -192,10 +266,16 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
         val avgScore = if (itemsEvaluatedCount > 0) totalScoreSum / itemsEvaluatedCount else 0
         val avgFluency = if (itemsEvaluatedCount > 0) totalFluencySum / itemsEvaluatedCount else 0
         val indepPercentage = if (itemsEvaluatedCount > 0) (independentItemsCount * 100) / itemsEvaluatedCount else 0
+        val avgComprehension = if (itemsEvaluatedCount > 0 && currentStageId >= 6) totalComprehensionSum / itemsEvaluatedCount else 0
+        val avgWcpm = if (itemsEvaluatedCount > 0) totalWcpmSum / itemsEvaluatedCount else 0
         
         val passed = when (currentStageId) {
             2 -> avgScore >= 80 && avgFluency >= 70 // Tahap 3 (KVK)
             3 -> avgScore >= 75 && indepPercentage >= 80 // Tahap 4 (Kluster)
+            4 -> avgScore >= 75 && avgFluency >= 80 // Tahap 5 (3+ Suku kata)
+            5 -> avgScore >= 75 // Tahap 6 (Kalimat)
+            6 -> avgScore >= 75 && avgComprehension == 100 // Tahap 7 (2 dari 2 = 100%)
+            7 -> avgScore >= 75 && avgWcpm >= 20 // Tahap 8 WCPM requirement (e.g., 20 words per minute)
             else -> avgScore >= 70 // Tahap lainnya
         }
 
@@ -206,7 +286,9 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                     itemsTrainedCount = itemsEvaluatedCount,
                     averageScore = avgScore,
                     averageFluency = avgFluency,
-                    independencePercentage = indepPercentage
+                    independencePercentage = indepPercentage,
+                    averageComprehension = avgComprehension,
+                    averageWcpm = avgWcpm
                 )
             )
             // If passed, unlock next stage
@@ -217,7 +299,15 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
                     repository.updateStage(nextStage.copy(isUnlocked = true))
                 }
             }
-            onSessionFinished(duration, allSessionItems.size, avgScore, passed)
+            
+            if (passed && currentStageId == 7) {
+                // Graduate!
+                val totalSecs = sessionHistory.value.sumOf { it.durationSeconds }
+                val hours = totalSecs / 3600.0
+                _sessionState.value = SessionState.Graduation("Anak Hebat", hours)
+            } else {
+                onSessionFinished(duration, allSessionItems.size, avgScore, passed)
+            }
         }
     }
 
@@ -229,14 +319,15 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
     // Dengan Gemini Multimodal (Audio + Teks), kita bisa menginstruksikan model untuk berfokus
     // secara spesifik pada "kemiripan fonemik" antara suara dan teks target (sebagai evaluator pengucapan),
     // memberikan hasil (skor & toleransi cadel) yang jauh lebih robust daripada sekadar speech-to-text biasa.
-    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): Triple<Int, Int, Boolean> = withContext(Dispatchers.IO) {
+    private suspend fun evaluateWithGemini(targetText: String, audioBase64: String): GeminiEvalResult = withContext(Dispatchers.IO) {
         try {
             val prompt = "Kamu adalah guru penilai pengucapan bahasa Indonesia untuk anak-anak TK. " +
                     "Evaluasi apakah audio ucapan anak ini merupakan pengucapan yang benar dari teks target: '${targetText}'. " +
                     "Nilai kemiripan fonemik saja, bukan transkripsi kalimat utuh (karena ini suku kata pendek). " +
                     "Maklumi pelafalan anak kecil yang mungkin kurang sempurna/cadel. " +
                     "Berikan juga skor 'fluency' (kelancaran, 0-100) berdasarkan ada tidaknya jeda mengeja antar suku kata (makin lancar tanpa jeda = makin tinggi). " +
-                    "Keluarkan JSON tanpa format markdown, murni berisi: {\"score\": <0-100>, \"fluency\": <0-100>, \"isCorrect\": <boolean>}. " +
+                    "Evaluasi juga 'intonationMatched' (true/false) khusus jika target memiliki tanda baca (?, !, .), apakah nada bicara anak sudah sesuai tanda baca tersebut dan berhenti di koma. " +
+                    "Keluarkan JSON tanpa format markdown, murni berisi: {\"score\": <0-100>, \"fluency\": <0-100>, \"isCorrect\": <boolean>, \"intonationMatched\": <boolean>}. " +
                     "Syarat isCorrect true adalah jika score >= 70."
 
             val request = GenerateContentRequest(
@@ -254,7 +345,7 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             val apiKey = BuildConfig.GEMINI_API_KEY
             if (apiKey.isEmpty() || apiKey.contains("MY_GEMINI_API_KEY")) {
                 // Mock for testing if no real key
-                return@withContext Triple(85, 90, true)
+                return@withContext GeminiEvalResult(85, 90, true, true)
             }
 
             val response = RetrofitClient.service.generateContent(apiKey, request)
@@ -266,12 +357,13 @@ class TamanKataViewModel(private val repository: TamanKataRepository) : ViewMode
             val score = jsonObj.optInt("score", 0)
             val fluency = jsonObj.optInt("fluency", 0)
             val isCorrect = jsonObj.optBoolean("isCorrect", false)
+            val intonationMatched = jsonObj.optBoolean("intonationMatched", true)
             
-            Triple(score, fluency, isCorrect)
+            GeminiEvalResult(score, fluency, isCorrect, intonationMatched)
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback mock
-            Triple(85, 90, true)
+            GeminiEvalResult(85, 90, true, true)
         }
     }
 

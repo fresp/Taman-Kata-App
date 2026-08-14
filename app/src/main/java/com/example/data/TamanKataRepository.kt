@@ -13,6 +13,7 @@ class TamanKataRepository(private val dao: TamanKataDao) {
     suspend fun updateStage(stage: Stage) = dao.updateStage(stage)
     suspend fun updateItem(item: LearningItem) = dao.updateItem(item)
     suspend fun saveSession(history: SessionHistory) = dao.insertSessionHistory(history)
+    suspend fun getWeakItems(limit: Int) = dao.getWeakItems(limit)
     
     suspend fun initializeDummyData() {
         if (dao.getStageCount() == 0) {
@@ -21,10 +22,10 @@ class TamanKataRepository(private val dao: TamanKataDao) {
                 Stage(id = 1, title = "Tahap 2: KV", isUnlocked = false),
                 Stage(id = 2, title = "Tahap 3: KVK", isUnlocked = false),
                 Stage(id = 3, title = "Tahap 4: Kluster", isUnlocked = false),
-                Stage(id = 4, title = "Tahap 5", isUnlocked = false),
-                Stage(id = 5, title = "Tahap 6", isUnlocked = false),
-                Stage(id = 6, title = "Tahap 7", isUnlocked = false),
-                Stage(id = 7, title = "Tahap 8", isUnlocked = false),
+                Stage(id = 4, title = "Tahap 5: 3+ Suku Kata", isUnlocked = false),
+                Stage(id = 5, title = "Tahap 6: Kalimat", isUnlocked = false),
+                Stage(id = 6, title = "Tahap 7: Paragraf Mini", isUnlocked = false),
+                Stage(id = 7, title = "Tahap 8: Kelancaran", isUnlocked = false),
                 Stage(id = 8, title = "Tahap 9", isUnlocked = false)
             )
             dao.insertStages(stages)
@@ -52,8 +53,27 @@ class TamanKataRepository(private val dao: TamanKataDao) {
                 items.add(LearningItem(stageId = 3, text = it.replace("-", ""), syllables = it))
             }
             
+            // Stage 4 (Tahap 5)
+            val stage4Items = listOf("ke-lin-ci", "se-pa-tu", "ma-ta-ha-ri", "ke-la-pa", "ce-la-na")
+            stage4Items.forEach {
+                items.add(LearningItem(stageId = 4, text = it.replace("-", ""), syllables = it))
+            }
+
+            // Stage 5 (Tahap 6)
+            val stage5Items = listOf("Ini bola saya.", "Kucing itu lucu.", "Adik makan nasi.", "Ayo bermain!")
+            stage5Items.forEach {
+                items.add(LearningItem(stageId = 5, text = it, syllables = it))
+            }
+
+            // Stage 6 (Tahap 7) Paragraf
+            val p1Extra = "{\"q1\": \"Hewan apa peliharaan Budi?\", \"o1\": [\"Anjing 🐶\", \"Kucing 🐱\"], \"a1\": 1, \"q2\": \"Warna apa kucingnya?\", \"o2\": [\"Hitam ⚫\", \"Putih ⚪\"], \"a2\": 0}"
+            items.add(LearningItem(stageId = 6, text = "Ini kucing Budi. Kucing Budi warna hitam. Budi suka main bola sama kucing.", extraData = p1Extra))
+            
+            val p2Extra = "{\"q1\": \"Siapa yang lari?\", \"o1\": [\"Kelinci 🐇\", \"Kura-kura 🐢\"], \"a1\": 0, \"q2\": \"Di mana kelinci lari?\", \"o2\": [\"Di taman 🌳\", \"Di rumah 🏠\"], \"a2\": 0}"
+            items.add(LearningItem(stageId = 6, text = "Kelinci suka lari. Kelinci lari di taman. Taman itu sangat luas.", extraData = p2Extra))
+            
             // Rest
-            for (i in 4..8) {
+            for (i in 7..8) {
                 items.add(LearningItem(stageId = i, text = "ta-mat", syllables = "ta-mat"))
             }
             

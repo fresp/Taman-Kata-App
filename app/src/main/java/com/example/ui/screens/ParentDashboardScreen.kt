@@ -48,6 +48,26 @@ fun ParentDashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                val totalSecs = history.sumOf { it.durationSeconds }
+                val currentHours = totalSecs / 3600.0
+                val targetHours = 60.0
+                val remaining = maxOf(0.0, targetHours - currentHours)
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Ringkasan Progres", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Total Belajar: ${String.format("%.1f", currentHours)} Jam", style = MaterialTheme.typography.bodyLarge)
+                        Text("Estimasi Sisa Waktu (Target 60 Jam): ${String.format("%.1f", remaining)} Jam", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+
             if (history.isEmpty()) {
                 item {
                     Text(
@@ -97,7 +117,17 @@ fun SessionHistoryCard(session: SessionHistory) {
                 Text("Kemandirian: ${session.independencePercentage}%", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Kelancaran (Fluency): ${session.averageFluency}%", style = MaterialTheme.typography.bodyMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Kelancaran (Fluency): ${session.averageFluency}%", style = MaterialTheme.typography.bodyMedium)
+                Text("WCPM: ${session.averageWcpm}", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (session.averageComprehension > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Pemahaman Literasi: ${session.averageComprehension}%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+            }
         }
     }
 }

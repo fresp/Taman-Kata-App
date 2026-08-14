@@ -33,6 +33,9 @@ interface TamanKataDao {
     @Insert
     suspend fun insertSessionHistory(history: SessionHistory)
     
+    @Query("SELECT * FROM learning_items WHERE attemptCount > 0 AND lastAccuracyScore < 80 ORDER BY lastAccuracyScore ASC LIMIT :limit")
+    suspend fun getWeakItems(limit: Int): List<LearningItem>
+
     @Query("SELECT COUNT(*) FROM stages")
     suspend fun getStageCount(): Int
 }

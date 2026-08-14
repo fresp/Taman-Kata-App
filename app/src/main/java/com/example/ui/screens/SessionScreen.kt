@@ -14,9 +14,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,8 +101,18 @@ fun SessionScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val expression = when (sessionState) {
-                is SessionState.Feedback -> if ((sessionState as SessionState.Feedback).isCorrect) KikiExpression.HAPPY else KikiExpression.CHEERING
+            val expression = when (val state = sessionState) {
+                is SessionState.Feedback -> {
+                    if (state.isCorrect) {
+                        if (state.item.stageId == 5 && state.item.text.endsWith("!") && state.intonationMatched) {
+                            KikiExpression.CHEERING
+                        } else {
+                            KikiExpression.HAPPY
+                        }
+                    } else {
+                        KikiExpression.NEUTRAL
+                    }
+                }
                 else -> KikiExpression.NEUTRAL
             }
             KikiMascot(expression = expression, modifier = Modifier.size(80.dp))
@@ -145,10 +155,22 @@ fun SessionScreen(
             }
             is SessionState.Feedback -> {
                 FeedbackView(
-                    isCorrect = state.isCorrect,
-                    showParentHelp = state.showParentHelp,
+                    state = state,
                     onNext = { viewModel.continueToNext() },
                     onParentDecide = { isCorrect -> viewModel.manualParentEvaluation(isCorrect) }
+                )
+            }
+            is SessionState.Comprehension -> {
+                ComprehensionView(
+                    state = state,
+                    onAnswerSelected = { idx -> viewModel.answerComprehension(idx) }
+                )
+            }
+            is SessionState.Graduation -> {
+                GraduationCertificateView(
+                    studentName = state.studentName,
+                    totalHours = state.totalHours,
+                    onFinish = { onSessionFinished(0, 0, 100, true) }
                 )
             }
             else -> {}
@@ -274,20 +296,19 @@ fun FadingScaffoldText(text: String, syllables: String, score: Int) {
 
 @Composable
 fun FeedbackView(
-    isCorrect: Boolean,
-    showParentHelp: Boolean,
+    state: SessionState.Feedback,
     onNext: () -> Unit,
     onParentDecide: (Boolean) -> Unit
 ) {
-    LaunchedEffect(isCorrect, showParentHelp) {
-        if (!showParentHelp) {
+    LaunchedEffect(state.isCorrect, state.showParentHelp) {
+        if (!state.showParentHelp) {
             delay(2000)
             onNext()
         }
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (showParentHelp) {
+        if (state.showParentHelp) {
             Surface(
                 modifier = Modifier.padding(32.dp).shadow(8.dp, RoundedCornerShape(24.dp)),
                 shape = RoundedCornerShape(24.dp),
@@ -311,8 +332,8 @@ fun FeedbackView(
             }
         } else {
             // Visual feedback
-            val color = if (isCorrect) PrimaryGreen else WarmOrange
-            val message = if (isCorrect) "Bagus Sekali!" else "Ayo Coba Lagi!"
+            val color = if (state.isCorrect) PrimaryGreen else WarmOrange
+            val message = if (state.isCorrect) "Bagus Sekali!" else "Ayo Coba Lagi!"
             
             Text(
                 text = message,
@@ -320,6 +341,109 @@ fun FeedbackView(
                 color = color,
                 textAlign = TextAlign.Center
             )
+
+            // Tahap 5 (3+ Suku Kata) Kecepatan Gabung Gamification
+            if (state.item.stageId == 4 && state.isCorrect) {
+                Spacer(modifier = Modifier.height(16.dp))
+                val speedText = when {
+                    state.fluency >= 85 -> "🚀 Secepat Roket!"
+                    state.fluency >= 60 -> "🚗 Sekencang Mobil!"
+                    else -> "🐢 Santai seperti Kura-kura!"
+                }
+                Text(
+                    text = speedText,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = ActionOrange
+                )
+            }
+            
+            // Tahap 6 (Kalimat) Intonasi Gamification
+            if (state.item.stageId == 5 && state.isCorrect && state.intonationMatched) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "🎶 Nada Bicaramu Pas Sekali!",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = ActionOrange
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ComprehensionView(state: SessionState.Comprehension, onAnswerSelected: (Int) -> Unit) {
+    val currentQuestion = state.questions[state.currentQuestionIndex]
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(16.dp).fillMaxWidth()
+    ) {
+        Text(
+            text = currentQuestion.question,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = TextDark,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            currentQuestion.options.forEachIndexed { index, optionText ->
+                Button(
+                    onClick = { onAnswerSelected(index) },
+                    modifier = Modifier.weight(1f).height(100.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ActionOrange)
+                ) {
+                    Text(
+                        text = optionText,
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GraduationCertificateView(studentName: String, totalHours: Double, onFinish: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(16.dp).fillMaxWidth()
+    ) {
+        Text(
+            text = "🎉 SELAMAT! 🎉",
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Black,
+            color = PrimaryGreen
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(4.dp, ActionOrange),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Text("SERTIFIKAT KELULUSAN", style = MaterialTheme.typography.headlineSmall, color = TextDark)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(studentName, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = ActionOrange)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Telah menyelesaikan program membaca\ndengan total waktu belajar:", textAlign = TextAlign.Center)
+                Text(String.format("%.1f Jam", totalHours), style = MaterialTheme.typography.headlineMedium, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onFinish,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+        ) {
+            Text("Kembali ke Beranda", style = MaterialTheme.typography.titleLarge)
         }
     }
 }
